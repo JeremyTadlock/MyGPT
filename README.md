@@ -28,5 +28,5 @@ The following hyperparameters can be set when using the BigramGPT class:
 This model requires a dataset of text to train on. Two example datasets are provided in this repository (openai_generated_text.txt and openai_generated_text_800.txt), but you can use any text dataset you like.
 
 # **Acknowledgements**
-This project was inspired by the GPT-2 model developed by OpenAI. For more information, see the famous paper "Attention Is All You Need".
+This project was inspired by the GPT-2 model developed by OpenAI & the famous paper "Attention is all you need" by Google. For more information, see the link(s)
 [Attention Is All You Need](https://arxiv.org/pdf/1706.03762v5.pdf)
