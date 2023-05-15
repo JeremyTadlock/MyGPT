@@ -1,8 +1,8 @@
 # **GPT Model**
-This project contains an implementation of a GPT (Generative Pre-trained Transformer) language model. The model uses self-attention to allow each word to attend to every other word in the input dataset. The model is implemented in PyTorch, and can be used to generate text based on a given input. 
+This project contains an implementation of a GPT (Generative Pre-trained Transformer) deep learning language model. The model uses self-attention to allow each word to attend to every other word in the input dataset. The model is implemented in PyTorch, and can be used to generate text based on a given input. 
 
 # **Setup**
-To run this code, you must have:
+To run this code, you must have
 * Python 3.6 or higher
 * PyTorch 1.9 or higher
 
