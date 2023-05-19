@@ -1,17 +1,6 @@
-import math
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-import os
-from email.parser import Parser
-import nltk
-
-nltk.download('punkt')
-nltk.download('stopwords')
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-import praw
-import tokenizers
 import gpt_tokenizers
 
 batch_size = 64  # Number of sequences processed in parallel
@@ -24,7 +13,7 @@ eval_iters = 200
 num_embeddings = 384  # this number was chosen because 384/6 = 64 (standard)
 num_heads = 6
 num_layers = 6
-bpe_vocab_size = 5000
+bpe_vocab_size = 2500
 
 # dropout is a way to prevent overfitting in large neural networks. it works by having every forward-backward pass
 # randomly shut off a subset of neurons(set to 0). It basically splits training into multiple sub-networks then
@@ -57,8 +46,22 @@ byte_pair_encoder.train("openai_generated_text.txt")
 character_tokenizer_vocab_size = len(chars)  # Vocab size specifically used with character tokenizer
 character_tokenizer = gpt_tokenizers.CharacterTokenizer(chars)
 
+# Use custom SentencePiece tokenizer
+sp_vocab_size = 5000
+#sentencepiece_tokenizer = gpt_tokenizers.SentencePieceTokenizer(vocab_size=sp_vocab_size)
+#sentencepiece_tokenizer.fit(dataset)
+
+# Use Google SentencePiece
+# if you have multiple text files for your dataset, you can do something like:
+# data='openai_generated_text.txt, file2.txt, file3.txt' etc.
+google_sentencepiece_tokenizer = gpt_tokenizers.SentencePieceTokenizerGoogle(vocab_size=sp_vocab_size,
+                                                                             data='openai_generated_text.txt')
+
+
+
+
 # Split input data into train/test data - uses a 90%/10% split
-data = torch.tensor(byte_pair_encoder.encode(dataset), dtype=torch.long)
+data = torch.tensor(google_sentencepiece_tokenizer.encode(dataset), dtype=torch.long)
 
 n = int(0.9 * len(data))
 train_data = data[:n]
@@ -194,11 +197,11 @@ class BigramLanguageModel(nn.Module):
         super().__init__()
 
         # each token reads off the logits for the next token using lookup table
-        self.token_embedding_table = nn.Embedding(bpe_vocab_size, num_embeddings)
+        self.token_embedding_table = nn.Embedding(sp_vocab_size, num_embeddings)
         self.position_embedding_table = nn.Embedding(block_size, num_embeddings)
         self.blocks = nn.Sequential(*[Block(num_embeddings, num_head=num_heads) for _ in range(num_layers)])
         self.ln_f = nn.LayerNorm(num_embeddings)
-        self.lm_head = nn.Linear(num_embeddings, bpe_vocab_size)
+        self.lm_head = nn.Linear(num_embeddings, sp_vocab_size)
 
     # forward feeding
     def forward(self, idx, targets=None):
@@ -261,7 +264,7 @@ for iter in range(max_iters):
         losses = estimate_loss()
         print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         context = torch.zeros((1, 1), dtype=torch.long, device=device)
-        print(byte_pair_encoder.decode(m.generate(context, max_new_tokens=2500)[0].tolist()))
+        print(google_sentencepiece_tokenizer.decode(m.generate(context, max_new_tokens=2500)[0].tolist()))
         print("------------------------------------------------------")
 
     # Sample a batch of data
@@ -277,5 +280,5 @@ for iter in range(max_iters):
 print("GENERATING SAMPLE TEXT")
 for _ in range(10):
     context = torch.zeros((1, 1), dtype=torch.long, device=device)
-    print(byte_pair_encoder.decode(m.generate(context, max_new_tokens=2500)[0].tolist()))
+    print(google_sentencepiece_tokenizer.decode(m.generate(context, max_new_tokens=2500)[0].tolist()))
     print("------------------------------------------------------")
