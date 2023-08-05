@@ -2,18 +2,19 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import gpt_tokenizers
+import os
 
 batch_size = 64  # Number of sequences processed in parallel
 block_size = 256  # Max content length for predictions
-max_iters = 5000  # was 3000 with lr=1e-2
-eval_interval = 500  # was 300 to match max_iters
+max_iters = 1  # was 3000 with lr=1e-2
+eval_interval = 500  # how often we check train/val loss and generate autocompleted tokens.
 learning_rate = 1e-3  # was 1e-2 then 1e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'  # try to use pytorch's CUDA for GPU parallel processing
 eval_iters = 200
 num_embeddings = 384  # this number was chosen because 384/6 = 64 (standard)
 num_heads = 6
 num_layers = 6
-bpe_vocab_size = 2500
+bpe_vocab_size = 7500
 
 # dropout is a way to prevent overfitting in large neural networks. it works by having every forward-backward pass
 # randomly shut off a subset of neurons(set to 0). It basically splits training into multiple sub-networks then
@@ -21,30 +22,26 @@ bpe_vocab_size = 2500
 dropout = 0.2  # link here: https://www.cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf
 
 # Grab data from datasets
+dataset = ""
+files = ["input_data_files/openai_generated_text.txt", "input_data_files/openai_generated_text_3000_0.txt",
+         "input_data_files/openai_generated_text_3000_1.txt", "input_data_files/openai_generated_text_3000_spooky.txt"]
+for file in files:
+    with open(file, "r", encoding="utf8") as f:
+        dataset = dataset + f.read() + '\n'
 
-# better dataset, 5million tokens
-with open("openai_generated_text.txt", "r", encoding="utf8") as f:
-    openai_dataset_1 = f.read()
-
-# maybe slightly worse dataset? 7 million tokens
-with open("openai_generated_text_800.txt", "r", encoding="utf8") as f:
-    openai_dataset_2 = f.read()
-
-dataset = openai_dataset_1
-
-# statistics about imported dataset(s)
+# Statistics about imported dataset(s)
 print(len(dataset))
 chars = sorted(list(set(dataset)))
 print("token size char:", len(chars))
 
 # Use Byte-Pair Encoder
 byte_pair_encoder = gpt_tokenizers.BytePairEncoder(bpe_vocab_size, 2)
-byte_pair_encoder.train("openai_generated_text.txt")
+byte_pair_encoder.train(files)
 
 # Use Character decoder
 # use character_tokenizer.decode and character_tokenizer.encode for encoding/decoding
-character_tokenizer_vocab_size = len(chars)  # Vocab size specifically used with character tokenizer
-character_tokenizer = gpt_tokenizers.CharacterTokenizer(chars)
+#character_tokenizer_vocab_size = len(chars)  # Vocab size specifically used with character tokenizer
+#character_tokenizer = gpt_tokenizers.CharacterTokenizer(chars)
 
 # Use custom SentencePiece tokenizer
 sp_vocab_size = 5000
@@ -54,14 +51,14 @@ sp_vocab_size = 5000
 # Use Google SentencePiece
 # if you have multiple text files for your dataset, you can do something like:
 # data='openai_generated_text.txt, file2.txt, file3.txt' etc.
-google_sentencepiece_tokenizer = gpt_tokenizers.SentencePieceTokenizerGoogle(vocab_size=sp_vocab_size,
-                                                                             data='openai_generated_text.txt')
+#google_sentencepiece_tokenizer = gpt_tokenizers.SentencePieceTokenizerGoogle(vocab_size=sp_vocab_size,
+                                                                             #data='openai_generated_text.txt')
 
 
 
 
 # Split input data into train/test data - uses a 90%/10% split
-data = torch.tensor(google_sentencepiece_tokenizer.encode(dataset), dtype=torch.long)
+data = torch.tensor(byte_pair_encoder.encode(dataset), dtype=torch.long)
 
 n = int(0.9 * len(data))
 train_data = data[:n]
@@ -70,7 +67,6 @@ val_data = data[n:]
 
 # load data
 def load_batch(split):
-    # Generate small batch of data using inputs 'x' and targets 'y'
     data = train_data if split == 'train' else val_data
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([data[i:i + block_size] for i in ix])
@@ -80,7 +76,8 @@ def load_batch(split):
 
 
 # gets rid of noise when getting loss. Averages the splits instead of randomly sampling(which creates noise)
-@torch.no_grad()  # tell's pytorch we AREN'T using backpropagation, saving memory
+# Later I can replace this loss estimation with a potentially better one. Monte Carlo sampling.
+@torch.no_grad()
 def estimate_loss():
     out = {}
     model.eval()
@@ -88,9 +85,13 @@ def estimate_loss():
         losses = torch.zeros(eval_iters)
         for k in range(eval_iters):
             X, Y = load_batch(split)
-            logits, loss = model(X, Y)
-            losses[k] = loss.item()
-        out[split] = losses.mean()
+            batch_losses = torch.zeros(batch_size)  # To store loss for each sample in the batch
+            for i in range(batch_size): # <-- where monte carlo sampling comes in
+                # Generate a single sample (sequence) for each input in the batch
+                logits, loss = model(X[i:i+1], Y[i:i+1])  # Use X[i:i+1] to keep the dimensions
+                batch_losses[i] = loss.item()
+            losses[k] = batch_losses.mean()  # Average the losses for the batch samples
+        out[split] = losses.mean()  # Average the losses over the iterations
     model.train()
     return out
 
@@ -197,11 +198,11 @@ class BigramLanguageModel(nn.Module):
         super().__init__()
 
         # each token reads off the logits for the next token using lookup table
-        self.token_embedding_table = nn.Embedding(sp_vocab_size, num_embeddings)
+        self.token_embedding_table = nn.Embedding(bpe_vocab_size, num_embeddings)
         self.position_embedding_table = nn.Embedding(block_size, num_embeddings)
         self.blocks = nn.Sequential(*[Block(num_embeddings, num_head=num_heads) for _ in range(num_layers)])
         self.ln_f = nn.LayerNorm(num_embeddings)
-        self.lm_head = nn.Linear(num_embeddings, sp_vocab_size)
+        self.lm_head = nn.Linear(num_embeddings, bpe_vocab_size)
 
     # forward feeding
     def forward(self, idx, targets=None):
@@ -264,7 +265,7 @@ for iter in range(max_iters):
         losses = estimate_loss()
         print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         context = torch.zeros((1, 1), dtype=torch.long, device=device)
-        print(google_sentencepiece_tokenizer.decode(m.generate(context, max_new_tokens=2500)[0].tolist()))
+        print(byte_pair_encoder.decode(m.generate(context, max_new_tokens=2500)[0].tolist()))
         print("------------------------------------------------------")
 
     # Sample a batch of data
@@ -276,9 +277,25 @@ for iter in range(max_iters):
     loss.backward()
     optimizer.step()
 
+torch.save(model.state_dict(), 'BPE_8000iter_12mil-tokens_montecarlo_v1.pth')
+
+# Create target directory & all intermediate directories if don't exists
+# Then save the encoder
+if not os.path.exists('encoder_directory'):
+    os.makedirs('encoder_directory')
+
+byte_pair_encoder.tokenizer.save_model('encoder_directory', 'encoder')
+
+# this is the code to load that a model. use relavant .pth file name.
+#model = BigramLanguageModel()
+#m = model.to(device)
+#m.load_state_dict(torch.load('BPE_5000_2_12m.pth'))
+#m.eval()
+# then generate like normal using m.generate. if it doesnt work, delete m and just use model with no cuda.
+
 # Generate from the model
 print("GENERATING SAMPLE TEXT")
 for _ in range(10):
     context = torch.zeros((1, 1), dtype=torch.long, device=device)
-    print(google_sentencepiece_tokenizer.decode(m.generate(context, max_new_tokens=2500)[0].tolist()))
+    print(byte_pair_encoder.decode(m.generate(context, max_new_tokens=2500)[0].tolist()))
     print("------------------------------------------------------")
