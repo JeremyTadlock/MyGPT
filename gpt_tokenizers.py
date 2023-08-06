@@ -46,6 +46,16 @@ class BytePairEncoder:
     def train(self, files):
         self.tokenizer.train(files=files, vocab_size=self.vocab_size, min_frequency=self.min_frequency)
 
+    # Save the tokenizer
+    def save(self, path, name):
+        if not os.path.exists(path):
+            os.makedirs(path)
+        self.tokenizer.save_model(path, name)
+
+    # Load tokenizer from files
+    def load(self, vocab_path, merges_path):
+        self.tokenizer = tokenizers.ByteLevelBPETokenizer(vocab_path, merges_path)
+
     def encode(self, s):
         encoded = self.tokenizer.encode(s).ids
         return encoded
