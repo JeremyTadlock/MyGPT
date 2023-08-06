@@ -37,7 +37,7 @@ class CharacterTokenizer:
 # Input: vocab list size, minimum frequency, and your dataset
 # Output: either encoded string to list or decoded list to string
 class BytePairEncoder:
-    def __init__(self, vocab_size=5000, min_frequency=2):
+    def __init__(self, vocab_size=50000, min_frequency=2):
         self.tokenizer = tokenizers.ByteLevelBPETokenizer()
         self.vocab_size = vocab_size
         self.min_frequency = min_frequency

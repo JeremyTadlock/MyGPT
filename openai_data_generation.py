@@ -4,7 +4,7 @@ import time
 
 data = ""
 
-your_api_key = "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"
+your_api_key = "[keep secret dont upload to github please]"
 openai.api_key = your_api_key
 
 messages = [
