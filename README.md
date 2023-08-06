@@ -2,9 +2,13 @@
 This project contains an implementation of a GPT (Generative Pre-trained Transformer) deep learning language model. The model uses self-attention to allow each word to attend to every other word in the input dataset. The model is implemented in PyTorch, and can be used to generate text based on a given input. 
 
 # **Setup**
-To run this code, you must have
-* Python 3.6 or higher
-* PyTorch 1.9 or higher
+To replicate the Anaconda environment used in this project, follow these steps:
+
+1. Install [Anaconda](https://www.anaconda.com/products/distribution) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) if you haven't already.
+2. Clone this repository:
+3. Create a new Anaconda environment from the `mygpt.yml` file:
+Now you should have all the dependencies you need to run this project!
+
 
 # **Usage**
 To use this GPT model, run the BigramGPT class to start training on your input dataset based on the given data and hyperparameters. you can use the gpt_tokenizers class to switch between a character tokenizer and a Byte-pair(subword) tokenizer.
