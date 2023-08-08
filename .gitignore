@@ -10,3 +10,4 @@ encoder_directory/
 input_data_files/
 
 *.pth
+*.bin
