@@ -327,7 +327,7 @@ for iter in range(max_iters):
     optimizer.step()
 
 # Save pretrained model
-torch.save(model.state_dict(), 'Orca_BPE_8000iter_1_6bil-tokens_montecarlo_v1.pth')
+torch.save(model.state_dict(), 'pretrained_models/Orca_BPE_6500iter_1_6bil-tokens_montecarlo_v1.pth')
 
 # Create target directory & all intermediate directories if don't exists
 # Then save the encoder

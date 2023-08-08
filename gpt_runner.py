@@ -4,7 +4,7 @@ import gpt_tokenizers
 from tokenizers import Tokenizer, models, pre_tokenizers, decoders, trainers, processors
 
 # Create bigram gpt model
-model_path = 'BPE_8000iter_12mil-tokens_montecarlo_v1.pth'
+model_path = 'pretrained_models/BPE_8000iter_12mil-tokens_montecarlo_v1.pth'
 print("Loading model")
 model = BigramGPT.BigramLanguageModel()
 m = model.to(BigramGPT.device)  # CUDA!!1!1
