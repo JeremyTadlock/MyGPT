@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+
+encoder_directory/
+input_data_files/
+
+*.pth
