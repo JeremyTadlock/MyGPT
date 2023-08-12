@@ -2,34 +2,34 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import gpt_tokenizers
-# import os
-# import json
-# from datasets import load_dataset
-# from torch.utils.data import Dataset, DataLoader
+import os
+import json
+from datasets import load_dataset
+from torch.utils.data import Dataset, DataLoader
 
-
+batch_size = 64  # Number of sequences processed in parallel
+block_size = 256  # Max content length for predictions
 max_iters = 6500  # was 3000 with lr=1e-2
 eval_interval = 500  # how often we check train/val loss and generate autocompleted tokens.
-
-device = 'cpu'
-#device = 'cuda' if torch.cuda.is_available() else 'cpu'  # try to use pytorch's CUDA for GPU parallel processing
+learning_rate = 1e-3  # was 1e-2 then 1e-3
+device = 'cuda' if torch.cuda.is_available() else 'cpu'  # try to use pytorch's CUDA for GPU parallel processing
 eval_iters = 200
-#num_embeddings this number was chosen because 384/6 = 64 (standard)
+num_embeddings = 384  # this number was chosen because 384/6 = 64 (standard)
+num_heads = 6
+num_layers = 6
 bpe_vocab_size = 7500
-batch_size = 64 #Number of sequences processed in parallel
-learning_rate=1e-3  #was 1e-2 then 1e-3
+
+# dropout is a way to prevent overfitting in large neural networks. it works by having every forward-backward pass
+# randomly shut off a subset of neurons(set to 0). It basically splits training into multiple sub-networks then
+# re-merges them at testing time.
+dropout = 0.2  # link here: https://www.cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf
 
 # Grab data from datasets
 print("Loading dataset")
 dataset = ""
-openAIFiles = ["input_data_files/openai_generated_text.txt", "input_data_files/openai_generated_text_3000_0.txt",
-         "input_data_files/openai_generated_text_3000_1.txt", "input_data_files/openai_generated_text_3000_spooky.txt"]
-
-allFiles = ["input_data_files/openai_generated_text.txt", "input_data_files/openai_generated_text_3000_0.txt",
-         "input_data_files/openai_generated_text_3000_1.txt", "input_data_files/openai_generated_text_3000_spooky.txt"
+files = ["input_data_files/openai_generated_text.txt", "input_data_files/openai_generated_text_3000_0.txt",
+         "input_data_files/openai_generated_text_3000_1.txt", "input_data_files/openai_generated_text_3000_spooky.txt",
          "cleaned_orca_dataset.txt"]
-
-files = openAIFiles
 for file in files:
     with open(file, "r", encoding="utf8") as f:
         dataset = dataset + f.read() + '\n'
@@ -92,7 +92,7 @@ print("done splitting")
 
 
 # load data
-def load_batch(split, block_size=256):  # !!! block_size is hardset here, if someone changes it stuff will crash
+def load_batch(split):
     data = train_data if split == 'train' else val_data
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([data[i:i + block_size] for i in ix])
@@ -122,22 +122,22 @@ def estimate_loss():
     return out
 
 
-
+'''
 # Original loss estimation code. not as accurate as it doesnt use the monte carlo method, but it runs faster.
-# @torch.no_grad()  # tell's pytorch we AREN'T using backpropagation, saving memory
-# def estimate_loss():
-#     out = {}
-#     model.eval()
-#     for split in ['train', 'val']:
-#         losses = torch.zeros(eval_iters)
-#         for k in range(eval_iters):
-#             X, Y = load_batch(split)
-#             logits, loss = model(X, Y)
-#             losses[k] = loss.item()
-#         out[split] = losses.mean()
-#     model.train()
-#     return out
-
+@torch.no_grad()  # tell's pytorch we AREN'T using backpropagation, saving memory
+def estimate_loss():
+    out = {}
+    model.eval()
+    for split in ['train', 'val']:
+        losses = torch.zeros(eval_iters)
+        for k in range(eval_iters):
+            X, Y = load_batch(split)
+            logits, loss = model(X, Y)
+            losses[k] = loss.item()
+        out[split] = losses.mean()
+    model.train()
+    return out
+'''
 
 
 # Self-Attention model
@@ -152,7 +152,7 @@ def estimate_loss():
 class Head(nn.Module):
     # ONE head of self-attention
 
-    def __init__(self, head_size, num_embeddings, block_size, dropout):
+    def __init__(self, head_size):
         super().__init__()
         self.key = nn.Linear(num_embeddings, head_size, bias=False)
         self.query = nn.Linear(num_embeddings, head_size, bias=False)
@@ -188,9 +188,9 @@ class Head(nn.Module):
 # Run multiple heads in parallel
 class MultipleHeads(nn.Module):
 
-    def __init__(self, num_heads, head_size, num_embeddings, block_size, dropout):
+    def __init__(self, num_heads, head_size):
         super().__init__()
-        self.heads = nn.ModuleList([Head(head_size, num_embeddings, block_size, dropout) for _ in range(num_heads)])
+        self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
         self.projection = nn.Linear(head_size * num_heads, num_embeddings)
         self.dropout = nn.Dropout(dropout)
 
@@ -203,7 +203,7 @@ class MultipleHeads(nn.Module):
 # feedforward consisting of a linear layer, follow by a ReLu nonlinear function
 class FeedForward(nn.Module):
 
-    def __init__(self, n_embd, dropout):
+    def __init__(self, n_embd):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(n_embd, 4 * n_embd),
@@ -219,11 +219,11 @@ class FeedForward(nn.Module):
 # Transformer block: communication followed by computation
 class Block(nn.Module):
 
-    def __init__(self, n_embd, num_heads, num_embeddings, block_size, dropout):
+    def __init__(self, n_embd, num_head):
         super().__init__()
-        head_size = n_embd // num_heads
-        self.sa = MultipleHeads(num_heads, head_size, num_embeddings, block_size, dropout)
-        self.ffwd = FeedForward(n_embd, dropout)
+        head_size = n_embd // num_head
+        self.sa = MultipleHeads(num_head, head_size)
+        self.ffwd = FeedForward(n_embd)
 
         # Pytorch's pre-norm formulation
         self.ln1 = nn.LayerNorm(n_embd)
@@ -238,20 +238,13 @@ class Block(nn.Module):
 # Bigram language model
 class BigramLanguageModel(nn.Module):
 
-    # dropout is a way to prevent overfitting in large neural networks. it works by having every forward-backward pass
-    # randomly shut off a subset of neurons(set to 0). It basically splits training into multiple sub-networks then
-    # re-merges them at testing time.
-    # link here: https://www.cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf
-
-    #block_size: Max content length for predictions
-    #num_embeddings: this number was chosen because 384/6 = 64 (standard)
-    def __init__(self, bpe_vocab_size=256, num_embeddings=384, block_size=256, num_heads=6, num_layers=6, dropout=0.2):
+    def __init__(self):
         super().__init__()
 
         # each token reads off the logits for the next token using lookup table
         self.token_embedding_table = nn.Embedding(bpe_vocab_size, num_embeddings)
         self.position_embedding_table = nn.Embedding(block_size, num_embeddings)
-        self.blocks = nn.Sequential(*[Block(num_embeddings, num_heads, num_embeddings, block_size, dropout) for _ in range(num_layers)])
+        self.blocks = nn.Sequential(*[Block(num_embeddings, num_head=num_heads) for _ in range(num_layers)])
         self.ln_f = nn.LayerNorm(num_embeddings)
         self.lm_head = nn.Linear(num_embeddings, bpe_vocab_size)
 
@@ -281,7 +274,7 @@ class BigramLanguageModel(nn.Module):
         #  idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
             # crop idx to the last block_size tokens
-            idx_cond = idx[:, -self.block_size:]
+            idx_cond = idx[:, -block_size:]
 
             # get predictions
             logits, loss = self(idx_cond)
@@ -299,11 +292,9 @@ class BigramLanguageModel(nn.Module):
             idx = torch.cat((idx, idx_next), dim=1)  # (B, T+1)
         return idx
 
-batch_size = 32
-
 
 print("Loading model")
-model = BigramLanguageModel(num_heads=3, num_layers=3)
+model = BigramLanguageModel()
 print("move to cuda")
 m = model.to(device)  # CUDA!!1!1
 
