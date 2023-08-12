@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+from functools import partial
 
 #import sagemaker_containers
 import torch
@@ -14,7 +15,17 @@ import torch.utils.data
 import torch.utils.data.distributed
 # from torchvision import datasets, transforms
 
+from torch.utils.data import IterableDataset
 from torch.utils.data import Dataset
+
+
+#from gpt_tokenizers import BytePairEncoder
+from transformers import LineByLineTextDataset
+from transformers import GPT2TokenizerFast
+from transformers import GPT2Tokenizer
+from transformers import DataCollatorForLanguageModeling
+
+from transformers.tokenization_utils import PreTrainedTokenizer
 
 from BigramGPT import BigramLanguageModel
 
@@ -22,66 +33,82 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler(sys.stdout))
 
-def _get_train_data_loader(batch_size, file, block_size, is_distributed, **kwargs):
+def _get_train_data_loader(batch_size, file, block_size, encoder, is_distributed, **kwargs):
     logger.info("Get train data loader")
     dataset = orcaDataset(
         file,
         block_size,
+        encoder
     )
-    train_sampler = (
-        torch.utils.data.distributed.DistributedSampler(dataset) if is_distributed else None
+
+    # dataset = LineByLineTextDataset(
+    #     #tokenizer=encoder,
+    #     file_path=file,
+    #     block_size=block_size
+    # )
+
+    collate_fn = DataCollatorForLanguageModeling(
+        tokenizer=encoder, mlm=False
     )
+    # train_sampler = (
+    #     torch.utils.data.distributed.DistributedSampler(dataset) if is_distributed else None
+    # )
+    print(f"Batj size: {batch_size} returning dataloader 3")
     return torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=train_sampler is None,
-        sampler=train_sampler,
+        collate_fn=collate_fn,
+        # shuffle=train_sampler is None,
+        # sampler=train_sampler,
         **kwargs
     )
 
+# class orcaDataset(IterableDataset):
+#     def __init__(self, file, block_size, tokenizer: PreTrainedTokenizer):
+#         self.tokenizer = tokenizer
+#         self.file = file
+#         self.block_size = block_size
+
+#     # Do we want to use and count overlapping sentences?
+#     def __iter__(self):
+#         with open(self.file, encoding="utf-8") as f:
+#             lines = [line for line in f.read().splitlines() if (len(line) > 0 and not line.isspace())]
+
+#         encoding = partial(self.tokenizer, add_special_tokens=True, truncation=True, max_length=self.block_size)
+#         mapped_iter = map(encoding, iter(lines))
+#         return mapped_iter
+
 class orcaDataset(Dataset):
-    def __init__(self, file, block_size):
-        # byte encoder??
-        self.block_size = block_size
-        self.data = ''
-        with open(file, "r", encoding="utf8") as f:
-            self.data = self.data + f.read() + '\n'
+    def __init__(self, file, block_size, tokenizer):
+        with open(file, encoding="utf-8") as f:
+            self.lines = [line for line in f.read().splitlines() if (len(line) > 0 and not line.isspace())]
+
+
+        encoding = partial(tokenizer, add_special_tokens=True, truncation=True, max_length=block_size)
+        self.mapped_iter = map(encoding, iter(self.lines))
+        self.last = None
+
+        
 
     def __len__(self):
-        return len(self.data) / self.block_size # size of samples, not chars
+        return len(self.lines)  # this wont ever update
 
-    def __getitem__(self, idx):  
-        #ix = torch.randint(len(self.data) - self.block_size, (self.block_size,)) this is just a random select right?
-        ix = idx * self.block_size
-        x = torch.stack([self.data[i:i + self.block_size] for i in ix])  # will this be called out or range and crash?
-        y = torch.stack([self.data[i + 1:i + self.block_size + 1] for i in ix])
-        return x, y
-    
-#     # We just love loading things in chunks because our PCs cannot handle the insane memory requirements!
-# # This function will let us load our dataset into a tensor in chunks, so we don't have to spend thousands of extra
-# # dollars on hardware instead.
-# def encode_dataset_in_chunks(encoder, dataset, chunk_size=1000000):
-#     encoded_chunks = []
-#     start_idx = 0
-#     while start_idx < len(dataset):
-#         end_idx = min(start_idx + chunk_size, len(dataset))
-#         chunk = dataset[start_idx:end_idx]
-#         encoded_chunk = encoder.encode(chunk)
-#         encoded_chunk_tensor = torch.tensor(encoded_chunk, dtype=torch.long)  # Convert list to tensor
-#         encoded_chunks.append(encoded_chunk_tensor)
-#         start_idx = end_idx
+    def __getitem__(self, idx):
+        if not self.last:
+            self.last = next(self.mapped_iter)
 
-#     return torch.cat(encoded_chunks)  # Concatenate tensors before returning
+        nextval = next(self.mapped_iter)
+        val = (self.last, nextval)
+        self.last = next
 
+        return (val)
 
-# chunk_size = 1000000  # Adjust the chunk size according to your memory capacity
-# data = encode_dataset_in_chunks(byte_pair_encoder, dataset, chunk_size=chunk_size)
-# print("more splitting")
-# n = int(0.9 * len(data))
-# train_data = data[:n]
-# val_data = data[n:]
-# print("done splitting")
-
+    # Do we want to use and count overlapping sentences?
+    # def __getitem__(self, idx):  
+    #     #ix = torch.randint(len(self.data) - self.block_size, (self.block_size,)) this is just a random select right?
+    #     ix = idx * self.block_size
+    #     x = torch.stack([self.data[i:i + self.block_size] for i in ix])  # will this be called out or range and crash?
+    #     y = torch.stack([self.data[i + 1:i + self.block_size + 1] for i in ix])
 
 # def _get_test_data_loader(test_batch_size, training_dir, **kwargs):
 #     logger.info("Get test data loader")
@@ -133,16 +160,27 @@ def train(args):
     if use_cuda:
         torch.cuda.manual_seed(args.seed)
 
-    train_loader = _get_train_data_loader(args.batch_size, args.file, args.block_size, is_distributed, **kwargs)
+    # logger.info("training encoder")
+    # byte_pair_encoder = BytePairEncoder(args.bpe_vocab_size, 2)
+    # byte_pair_encoder.train(args.data_dir)
+
+    # logger.info("saving encoder")
+    # byte_pair_encoder.save(args.model_dir, "Orca_encoder")
+
+    # tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')  # will this work??
+    print("1 defined toke")
+    tokenizer = GPT2Tokenizer.from_pretrained('gpt2', pad_token="<pad>")
+    tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+    train_loader = _get_train_data_loader(args.batch_size, args.data_dir, args.block_size, tokenizer, is_distributed, **kwargs)
     #test_loader = _get_test_data_loader(args.test_batch_size, args.data_dir, **kwargs)
 
-    logger.debug(
-        "Processes {}/{} ({:.0f}%) of train data".format(
-            len(train_loader.sampler),
-            len(train_loader.dataset),
-            100.0 * len(train_loader.sampler) / len(train_loader.dataset),
-        )
-    )
+    # logger.debug(
+    #     "Processes {}/{} ({:.0f}%) of train data".format(
+    #         len(train_loader.sampler),
+    #         len(train_loader.dataset),
+    #         100.0 * len(train_loader.sampler) / len(train_loader.dataset),
+    #     )
+    # )
 
     # logger.debug(
     #     "Processes {}/{} ({:.0f}%) of test data".format(
@@ -152,6 +190,8 @@ def train(args):
     #     )
     # )
 
+    logger.info("Finished loading dataset")
+
     model = BigramLanguageModel().to(device)
     if is_distributed and use_cuda:
         # multi-machine multi-gpu case
@@ -160,7 +200,7 @@ def train(args):
         # single-machine multi-gpu case or single-machine or multi-machine cpu case
         model = torch.nn.DataParallel(model)
 
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr, momentum=args.momentum)
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -226,11 +266,14 @@ if __name__ == "__main__":
 
     # Data and model checkpoints directories
     parser.add_argument(
-        "--batch-size",
+        "--batch_size",
         type=int,
         default=64,
         metavar="N",
         help="input batch size for training (default: 64)",
+    )
+    parser.add_argument(
+        "--bpe_vocab_size", type=int, default=6500, metavar="bpe", help="vocab size of the bpe encoder"
     )
     parser.add_argument(
         "--block_size", type=int, default=256, help="Max content length for predictions"
@@ -238,7 +281,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--epochs",
         type=int,
-        default=6500,
+        default=5,
         metavar="N",
         help="number of epochs to train (default: 6500)",
     )
@@ -247,10 +290,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("--seed", type=int, default=1, metavar="S", help="random seed (default: 1)")
     parser.add_argument(
-        "--head_num", type=int, default=6, metavar="HN", help="number of heads in the model"
+        "--head_num", type=int, default=3, metavar="HN", help="number of heads in the model"
     )
     parser.add_argument(
-        "--layer_num", type=int, default=6, metavar="LN", help="number of layers in the model"
+        "--layer_num", type=int, default=3, metavar="LN", help="number of layers in the model"
     )
     parser.add_argument(
         "--log-interval",
@@ -267,10 +310,10 @@ if __name__ == "__main__":
     )
 
     # Container environment
-    parser.add_argument("--hosts", type=list, default=json.loads(os.environ["SM_HOSTS"]))
-    parser.add_argument("--current-host", type=str, default=os.environ["SM_CURRENT_HOST"])
-    parser.add_argument("--model-dir", type=str, default=os.environ["SM_MODEL_DIR"])
-    parser.add_argument("--data-dir", type=str, default=os.environ["SM_CHANNEL_TRAINING"])
-    parser.add_argument("--num-gpus", type=int, default=os.environ["SM_NUM_GPUS"])
+    parser.add_argument("--hosts", type=list, default=json.loads(os.environ.get("SM_HOSTS", "[]")))
+    parser.add_argument("--current-host", type=str, default=os.environ.get("SM_CURRENT_HOST", 'rip'))
+    parser.add_argument("--model-dir", type=str, default=os.environ.get("SM_MODEL_DIR", "."))
+    parser.add_argument("--data-dir", type=str, default=os.environ.get("SM_CHANNEL_TRAINING", "input_data_files/cleaned_orca_dataset.txt"))
+    parser.add_argument("--num-gpus", type=int, default=os.environ.get("SM_NUM_GPUS", torch.cuda.device_count()))
 
     train(parser.parse_args())
