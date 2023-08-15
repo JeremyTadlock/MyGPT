@@ -23,6 +23,13 @@ print(byte_pair_encoder.decode(model.generate(context, max_new_tokens=1000)[0].t
 
 
 
+from datasets import load_dataset
+
+load_dataset("wikipedia", "20220301.en")
+
+
+
+
 
 
 

@@ -2,47 +2,60 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import gpt_tokenizers
-import os
-import json
-from datasets import load_dataset
-from torch.utils.data import Dataset, DataLoader
 
-batch_size = 64  # Number of sequences processed in parallel
+batch_size = 32  # Number of sequences processed in parallel
 block_size = 256  # Max content length for predictions
-max_iters = 6500  # was 3000 with lr=1e-2
+max_iters = 8000  # was 3000 with lr=1e-2
 eval_interval = 500  # how often we check train/val loss and generate autocompleted tokens.
-learning_rate = 1e-3  # was 1e-2 then 1e-3
+learning_rate = 1e-4  # was 1e-2 then 1e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'  # try to use pytorch's CUDA for GPU parallel processing
 eval_iters = 200
 num_embeddings = 384  # this number was chosen because 384/6 = 64 (standard)
-num_heads = 6
-num_layers = 6
-bpe_vocab_size = 7500
-
+num_heads = 16
+num_layers = 16
+bpe_vocab_size = 10000
 # dropout is a way to prevent overfitting in large neural networks. it works by having every forward-backward pass
 # randomly shut off a subset of neurons(set to 0). It basically splits training into multiple sub-networks then
 # re-merges them at testing time.
-dropout = 0.2  # link here: https://www.cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf
+dropout = 0.05  # link here: https://www.cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf
+
+print("Using device:", device)
 
 # Grab data from datasets
 print("Loading dataset")
 dataset = ""
-files = ["input_data_files/openai_generated_text.txt", "input_data_files/openai_generated_text_3000_0.txt",
-         "input_data_files/openai_generated_text_3000_1.txt", "input_data_files/openai_generated_text_3000_spooky.txt",
-         "cleaned_orca_dataset.txt"]
+
+# Grab training and validation dataset split if dataset is already split
+training_dataset_file = "input_data_files/TinyStoriesV2-GPT4-train.txt"
+with open(training_dataset_file, "r", encoding="utf8") as f:
+    training_dataset = f.read()
+
+validation_dataset_file = "input_data_files/TinyStoriesV2-GPT4-valid.txt"
+with open(validation_dataset_file, "r", encoding="utf8") as f:
+    validation_dataset = f.read()
+
+# Grab entire dataset for tokenizer training. use chunking to avoid memory alloc error.
+chunk_size = 500000
+files = ["input_data_files/TinyStoriesV2-GPT4-train.txt", "input_data_files/TinyStoriesV2-GPT4-valid.txt"]
 for file in files:
     with open(file, "r", encoding="utf8") as f:
-        dataset = dataset + f.read() + '\n'
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            dataset += chunk
+        dataset += '\n'
 
 # Statistics about imported dataset(s)
 print(len(dataset))
 chars = sorted(list(set(dataset)))
-print("token size char:", len(chars))
+print("Unique characters in dataset:", len(chars))
 
 # Use Byte-Pair Encoder
 print("training BPE")
 byte_pair_encoder = gpt_tokenizers.BytePairEncoder(bpe_vocab_size, 2)
 byte_pair_encoder.train(files)
+
 
 # Use Character decoder
 # use character_tokenizer.decode and character_tokenizer.encode for encoding/decoding
@@ -60,18 +73,13 @@ byte_pair_encoder.train(files)
 # google_sentencepiece_tokenizer = gpt_tokenizers.SentencePieceTokenizerGoogle(vocab_size=sp_vocab_size,
 # data='openai_generated_text.txt')
 
-
-# Split input data into train/test data - uses a 90%/10% split
-print("Splitting data")
-
-
 # We just love loading things in chunks because our PCs cannot handle the insane memory requirements!
 # This function will let us load our dataset into a tensor in chunks, so we don't have to spend thousands of extra
 # dollars on hardware instead.
 def encode_dataset_in_chunks(encoder, dataset, chunk_size=1000000):
     encoded_chunks = []
     start_idx = 0
-    while start_idx < len(dataset):
+    while start_idx < len(dataset): 
         end_idx = min(start_idx + chunk_size, len(dataset))
         chunk = dataset[start_idx:end_idx]
         encoded_chunk = encoder.encode(chunk)
@@ -82,12 +90,16 @@ def encode_dataset_in_chunks(encoder, dataset, chunk_size=1000000):
     return torch.cat(encoded_chunks)  # Concatenate tensors before returning
 
 
+# Split input data into train/test data - uses a 90%/10% split
+print("Splitting data")
+
 chunk_size = 1000000  # Adjust the chunk size according to your memory capacity
-data = encode_dataset_in_chunks(byte_pair_encoder, dataset, chunk_size=chunk_size)
-print("more splitting")
-n = int(0.9 * len(data))
-train_data = data[:n]
-val_data = data[n:]
+train_data = encode_dataset_in_chunks(byte_pair_encoder, training_dataset, chunk_size=chunk_size)
+val_data = encode_dataset_in_chunks(byte_pair_encoder, validation_dataset, chunk_size=chunk_size)
+# data = encode_dataset_in_chunks(byte_pair_encoder, dataset, chunk_size=chunk_size)
+# n = int(0.9 * len(data))
+# train_data = data[:n]
+# val_data = data[n:]
 print("done splitting")
 
 
@@ -103,26 +115,7 @@ def load_batch(split):
 
 # gets rid of noise when getting loss. Averages the splits instead of randomly sampling(which creates noise)
 # Later I can replace this loss estimation with a potentially better one. Monte Carlo sampling.
-@torch.no_grad()
-def estimate_loss():
-    out = {}
-    model.eval()
-    for split in ['train', 'val']:
-        losses = torch.zeros(eval_iters)
-        for k in range(eval_iters):
-            X, Y = load_batch(split)
-            batch_losses = torch.zeros(batch_size)  # To store loss for each sample in the batch
-            for i in range(batch_size):  # <-- where monte carlo sampling comes in
-                # Generate a single sample (sequence) for each input in the batch
-                logits, loss = model(X[i:i + 1], Y[i:i + 1])  # Use X[i:i+1] to keep the dimensions
-                batch_losses[i] = loss.item()
-            losses[k] = batch_losses.mean()  # Average the losses for the batch samples
-        out[split] = losses.mean()  # Average the losses over the iterations
-    model.train()
-    return out
 
-
-'''
 # Original loss estimation code. not as accurate as it doesnt use the monte carlo method, but it runs faster.
 @torch.no_grad()  # tell's pytorch we AREN'T using backpropagation, saving memory
 def estimate_loss():
@@ -137,7 +130,6 @@ def estimate_loss():
         out[split] = losses.mean()
     model.train()
     return out
-'''
 
 
 # Self-Attention model
@@ -326,13 +318,12 @@ for iter in range(max_iters):
     loss.backward()
     optimizer.step()
 
-# Save pretrained model
-torch.save(model.state_dict(), 'pretrained_models/Orca_BPE_6500iter_1_6bil-tokens_montecarlo_v1.pth')
+torch.save(model.state_dict(), 'pretrained_models/TinyStories_BPE_8000iter_2_4bil-tokens_v1.pth')
 
 # Create target directory & all intermediate directories if don't exists
 # Then save the encoder
 encoder_dir = 'encoder_directory'
-tokenizer_name = 'Orca_encoder'
+tokenizer_name = 'Orca_encoder_v2'
 byte_pair_encoder.save(encoder_dir, tokenizer_name)
 
 # Generate from the model
