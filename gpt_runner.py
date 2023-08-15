@@ -19,4 +19,31 @@ byte_pair_encoder.load('encoder_directory/encoder-vocab.json', 'encoder_director
 # Generate some text using loaded model & tokenizer
 print("Generating text")
 context = torch.zeros((1, 1), dtype=torch.long, device=BigramGPT.device)
+<<<<<<< HEAD
 print(byte_pair_encoder.decode(model.generate(context, max_new_tokens=1000)[0].tolist()))
+=======
+print(byte_pair_encoder.decode(model.generate(context, max_new_tokens=1000)[0].tolist()))
+
+
+
+from datasets import load_dataset
+
+load_dataset("wikipedia", "20220301.en")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+>>>>>>> updated data chunking/sharding, added new pretrained model

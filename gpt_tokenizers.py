@@ -2,7 +2,6 @@ from typing import Any
 import tokenizers
 import re
 from collections import Counter
-import sentencepiece as spm
 import os
 import warnings
 
