@@ -1,3 +1,4 @@
+from typing import Any
 import tokenizers
 import re
 from collections import Counter
@@ -41,6 +42,10 @@ class BytePairEncoder:
         self.tokenizer = tokenizers.ByteLevelBPETokenizer()
         self.vocab_size = vocab_size
         self.min_frequency = min_frequency
+
+    def __call__(self, s):
+        encoded = self.tokenizer.encode(s).ids
+        return(encoded)
 
     # Train tokenizer on dataset
     def train(self, files):

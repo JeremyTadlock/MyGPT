@@ -120,24 +120,26 @@ class BigramLanguageModel(nn.Module):
         self.lm_head = nn.Linear(num_embeddings, bpe_vocab_size)
 
     # forward feeding
-    def forward(self, idx, targets=None):
-        B, T = idx.shape
+    def forward(self, input_ids: torch.Tensor = None, labels=None, attention_mask=None):
+        # The attention mask isnt used here, but is needed to not crash
+        B, T = input_ids.shape
+        device = input_ids.device
 
         # idx and targets are (B,T) tensors of integers
-        token_embeddings = self.token_embedding_table(idx)  # (B,T,embeddings)
-        positional_embeddings = self.position_embedding_table(torch.arange(T))#, device=device))  # (T,C)
+        token_embeddings = self.token_embedding_table(input_ids)  # (B,T,embeddings)
+        positional_embeddings = self.position_embedding_table(torch.arange(T, device=device))  # (T,C)
         x = token_embeddings + positional_embeddings  # encode info w/ tok & pos embeddings(B,T,C)
         x = self.blocks(x)  # apply multiple heads of self-attention(feed x into head). (B,T,C)
         x = self.ln_f(x)  # (B,T,C)
         logits = self.lm_head(x)  # (B,T,vocab_size)
 
-        if targets is None:
+        if labels is None:
             loss = None
         else:
             B, T, C = logits.shape
             logits = logits.view(B * T, C)
-            targets = targets.view(B * T)
-            loss = F.cross_entropy(logits, targets)
+            labels = labels.view(B * T)
+            loss = F.cross_entropy(logits, labels)
 
         return logits, loss
 

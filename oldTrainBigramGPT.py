@@ -15,8 +15,7 @@ import gpt_tokenizers
 max_iters = 6500  # was 3000 with lr=1e-2
 eval_interval = 500  # how often we check train/val loss and generate autocompleted tokens.
 
-device = 'cpu'
-# device = 'cuda' if torch.cuda.is_available() else 'cpu'  # try to use pytorch's CUDA for GPU parallel processing
+device = 'cuda' if torch.cuda.is_available() else 'cpu'  # try to use pytorch's CUDA for GPU parallel processing
 eval_iters = 200
 #num_embeddings this number was chosen because 384/6 = 64 (standard)
 bpe_vocab_size = 1000  #!!!!!
@@ -98,7 +97,7 @@ print("done splitting")
 # load data
 def load_batch(split, block_size=256):  # !!! block_size is hardset here, if someone changes it stuff will crash
     data = train_data if split == 'train' else val_data
-    ix = torch.randint(len(data) - block_size, (batch_size,))
+    ix = torch.randint(len(data) - block_size, (batch_size,))  # so this just grabs random shards
     x = torch.stack([data[i:i + block_size] for i in ix])
     y = torch.stack([data[i + 1:i + block_size + 1] for i in ix])
     x, y = x.to(device), y.to(device)
@@ -166,10 +165,10 @@ for iter in range(max_iters):
         print("------------------------------------------------------")
 
     # Sample a batch of data
-    xb, yb = load_batch('train')
+    input_ids, labels = load_batch('train')
 
     # Evaluate loss
-    logits, loss = model(xb, yb)
+    logits, loss = model(input_ids, labels)
     optimizer.zero_grad(set_to_none=True)
     loss.backward()
     optimizer.step()
