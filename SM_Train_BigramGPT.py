@@ -28,131 +28,11 @@ from transformers import DataCollatorForLanguageModeling
 from transformers.tokenization_utils import PreTrainedTokenizer
 
 from BigramGPT import BigramLanguageModel
+from dataloader import build_dataset
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler(sys.stdout))
-
-def _get_train_data_loader(batch_size, file, block_size, encoder, is_distributed, collate_fn, **kwargs):
-    logger.info("Get train data loader")
-    dataset = orcaDataset(
-        file,
-        block_size,
-        encoder
-    )
-
-    # dataset = LineByLineTextDataset(
-    #     #tokenizer=encoder,
-    #     file_path=file,
-    #     block_size=block_size
-    # )
-
-    # train_sampler = (
-    #     torch.utils.data.distributed.DistributedSampler(dataset) if is_distributed else None
-    # )
-    return torch.utils.data.DataLoader(
-        dataset,
-        batch_size=batch_size,
-        collate_fn=collate_fn,
-        # shuffle=train_sampler is None,
-        # sampler=train_sampler,
-        **kwargs
-    )
-
-class orcaDataset(IterableDataset):
-    def __init__(self, file, block_size, tokenizer: PreTrainedTokenizer):
-        self.tokenizer = tokenizer
-        self.file = file
-        self.block_size = block_size
-
-
-    def __len__(self):
-        # might not be acurate depending on how tokenizer works
-        with open(self.file, encoding="utf-8") as f:
-            return floor(len(f.read().split(' '))/self.block_size) 
-        
-    def _walkThroughDataset(self):  # there has to be an efficient way to do this without wasting data...
-        textChunkSize = self.block_size * 5 
-        with open(self.file, encoding="utf-8") as f:
-            start_idx = 0
-            while start_idx < len(f): 
-                end_idx = min(start_idx + textChunkSize, len(f))
-                chunk = f[start_idx:end_idx]
-                start_idx = end_idx
-                yield chunk
-
-    def _splittokenized(self, tokenized):
-        tokenized = self.tokenizer(tokenized)  # if padded this will crash
-
-
-
-    def maketrainingset(self, x):
-        # should take in, and output the two training windows of correct size, maybe encode them too.
-        pass
-
-    # Do we want to use and count overlapping sentences?
-    def __iter__(self):
-
-
-        encoding = partial(self.tokenizer, add_special_tokens=True, truncation=True, max_length=self.block_size)
-
-        mapped_iter = map(encoding, iter(self.lines))
-        return mapped_iter
-
-# class orcaDataset(Dataset):
-#     def __init__(self, file, block_size, tokenizer):
-#         with open(file, encoding="utf-8") as f:
-#             self.lines = [line for line in f.read().splitlines() if (len(line) > 0 and not line.isspace())]
-
-
-#         encoding = partial(tokenizer, add_special_tokens=True, truncation=True, max_length=block_size)
-#         self.mapped_iter = map(encoding, iter(self.lines))
-#         self.last = None
-
-        
-
-#     def __len__(self):
-#         return len(self.lines)  # this wont ever update
-
-#     def __getitem__(self, idx):
-#         if not self.last:
-#             self.last = next(self.mapped_iter)
-
-#         nextval = next(self.mapped_iter)
-#         val = (self.last, nextval)
-#         self.last = next
-
-#         return (val)
-
-    # Do we want to use and count overlapping sentences?
-    # def __getitem__(self, idx):  
-    #     #ix = torch.randint(len(self.data) - self.block_size, (self.block_size,)) this is just a random select right?
-    #     ix = idx * self.block_size
-    #     x = torch.stack([self.data[i:i + self.block_size] for i in ix])  # will this be called out or range and crash?
-    #     y = torch.stack([self.data[i + 1:i + self.block_size + 1] for i in ix])
-
-# def _get_test_data_loader(test_batch_size, training_dir, **kwargs):
-#     logger.info("Get test data loader")
-#     return torch.utils.data.DataLoader(
-#         datasets.MNIST(
-#             training_dir,
-#             train=False,
-#             transform=transforms.Compose(
-#                 [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-#             ),
-#         ),
-#         batch_size=test_batch_size,
-#         shuffle=True,
-#         **kwargs
-#     )
-
-
-def _average_gradients(model):
-    # Gradient averaging.
-    size = float(dist.get_world_size())
-    for param in model.parameters():
-        dist.all_reduce(param.grad.data, op=dist.reduce_op.SUM)
-        param.grad.data /= size
 
 def train(args):
     is_distributed = len(args.hosts) > 1 and args.backend is not None
@@ -181,60 +61,30 @@ def train(args):
     if use_cuda:
         torch.cuda.manual_seed(args.seed)
 
-    # logger.info("training encoder")
-    # byte_pair_encoder = BytePairEncoder(args.bpe_vocab_size, 2)
-    # byte_pair_encoder.train(args.data_dir)
-
-    # logger.info("saving encoder")
-    # byte_pair_encoder.save(args.model_dir, "Orca_encoder")
-
-    # from transformers import LlamaTokenizerFast
-    # tokenizer = LlamaTokenizerFast.from_pretrained('gpt2')
-
-    from transformers import GPT2TokenizerFast
-    tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
-    tokenizer.add_special_tokens({'pad_token': '<pad>', "bos_token": "<bos>", "cls_token": "<cls>", "sep_token": "<s>", "mask_token": "<mask>"})
-    
-    # from gpt_tokenizers import BytePairEncoder
-    # tokenizer = BytePairEncoder()
-    # tokenizer.load("encoder_directory/Orca_encoder-vocab.json", "encoder_directory/Orca_encoder-merges.txt")
-
-    # from tokenizers import ByteLevelBPETokenizer
-    # tokenizer = ByteLevelBPETokenizer("encoder_directory/Orca_encoder-vocab.json", "encoder_directory/Orca_encoder-merges.txt")
-    # tokenizer.add_special_tokens({'pad_token': '<pad>', "bos_token": "<bos>", "cls_token": "<cls>", "sep_token": "<s>", "mask_token": "<mask>"})
+    # add parameters
+    from transformers import RobertaTokenizer
+    tokenizer = RobertaTokenizer.from_pretrained("./tests/KantaiBERT", max_length=512)
+    # BPE tokenizer that comes with preprocessing and in a compatible format
 
     collate_fn = DataCollatorForLanguageModeling(
         tokenizer=tokenizer, mlm=False
     )
-    # do I really need to pass the collate_fn AND the tokenizer?
-    #test_loader = _get_test_data_loader(args.test_batch_size, args.data_dir, **kwargs)
-    #train_loader = _get_train_data_loader(args.batch_size, args.data_dir, args.block_size, tokenizer, is_distributed, collate_fn, **kwargs)
 
+    # parameter
+    dataset = build_dataset("input_data_files/kant.txt", tokenizer, 256)
+    logger.info(f"Finished loading dataset with {len(dataset)}examples")
 
-    logger.info("Finished loading dataset")
-
-    model = BigramLanguageModel().to(device)
+    model = BigramLanguageModel(bpe_vocab_size=7000, num_embeddings=513, block_size=256, num_heads=6, num_layers=6, dropout=0.2)
 
     from transformers import Trainer, TrainingArguments
 
-    # dataset = orcaDataset(  # try the lineby line too
-    #     args.data_dir,
-    #     args.block_size,
-    #     tokenizer
-    # )
-    #dataset = LineByLineTextDataset(
-    dataset = TextDataset(
-        tokenizer=tokenizer,
-        file_path=args.data_dir,
-        block_size=args.block_size
-    )
 
     training_args = TrainingArguments(  # we can overwrite the trainer, and make use our own optim
         output_dir=args.model_dir,
         overwrite_output_dir=True,
-        num_train_epochs=1,
+        num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
-        save_steps=args.epochs,
+        save_steps=10_000,
         save_total_limit=2,
     )
 
@@ -336,7 +186,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--epochs",
         type=int,
-        default=5,
+        default=50,
         metavar="N",
         help="number of epochs to train (default: 6500)",
     )
