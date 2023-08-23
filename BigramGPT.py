@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+from transformers.modeling_outputs import CausalLMOutput
+
 
 # Self-Attention model
 # The reason this is self-attention is because the keys/queries/values all come from the same source
@@ -141,7 +143,11 @@ class BigramLanguageModel(nn.Module):
             labels = labels.view(B * T)
             loss = F.cross_entropy(logits, labels)
 
-        return logits, loss
+        return loss, logits  # Swapped these because thats the way hf expects the output.
+        # return CausalLMOutput(
+        #         loss=loss,
+        #         logits=logits
+        #     )
 
     def generate(self, idx, max_new_tokens):
         #  idx is (B, T) array of indices in the current context

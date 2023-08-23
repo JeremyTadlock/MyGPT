@@ -42,6 +42,13 @@ class BytePairEncoder:
         self.tokenizer = tokenizers.ByteLevelBPETokenizer()
         self.vocab_size = vocab_size
         self.min_frequency = min_frequency
+        self.special_tokens=[
+            "<s>",
+            "<pad>",
+            "</s>",
+            "<unk>",
+            "<mask>",
+        ]
 
     def __call__(self, s):
         encoded = self.tokenizer.encode(s).ids
@@ -49,7 +56,7 @@ class BytePairEncoder:
 
     # Train tokenizer on dataset
     def train(self, files):
-        self.tokenizer.train(files=files, vocab_size=self.vocab_size, min_frequency=self.min_frequency)
+        self.tokenizer.train(files=files, vocab_size=self.vocab_size, min_frequency=self.min_frequency, special_tokens=self.special_tokens)
 
     # Save the tokenizer
     def save(self, path, name):

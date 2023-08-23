@@ -3,29 +3,15 @@ import json
 import logging
 import os
 import sys
-from functools import partial
-from math import floor
 
 #import sagemaker_containers
 import torch
 import torch.distributed as dist
-# import torch.nn as nn
-# import torch.nn.functional as F
-import torch.optim as optim
 import torch.utils.data
 import torch.utils.data.distributed
-# from torchvision import datasets, transforms
 
-from torch.utils.data import IterableDataset
-from torch.utils.data import Dataset
-
-
-#from gpt_tokenizers import BytePairEncoder
-from transformers import LineByLineTextDataset
-from transformers import TextDataset
+from transformers import Trainer, TrainingArguments
 from transformers import DataCollatorForLanguageModeling
-
-from transformers.tokenization_utils import PreTrainedTokenizer
 
 from BigramGPT import BigramLanguageModel
 from dataloader import build_dataset
@@ -63,7 +49,7 @@ def train(args):
 
     # add parameters
     from transformers import RobertaTokenizer
-    tokenizer = RobertaTokenizer.from_pretrained("./tests/KantaiBERT", max_length=512)
+    tokenizer = RobertaTokenizer.from_pretrained(args.model_dir, max_length=512)
     # BPE tokenizer that comes with preprocessing and in a compatible format
 
     collate_fn = DataCollatorForLanguageModeling(
@@ -71,12 +57,12 @@ def train(args):
     )
 
     # parameter
-    dataset = build_dataset("input_data_files/kant.txt", tokenizer, 256)
+    dataset = build_dataset(args.data_dir, tokenizer, args.block_size)
     logger.info(f"Finished loading dataset with {len(dataset)}examples")
 
-    model = BigramLanguageModel(bpe_vocab_size=7000, num_embeddings=513, block_size=256, num_heads=6, num_layers=6, dropout=0.2)
+    model = BigramLanguageModel(bpe_vocab_size=args.bpe_vocab_size, num_embeddings=513, block_size=args.block_size, num_heads=args.head_num, num_layers=args.head_num, dropout=0.2)
 
-    from transformers import Trainer, TrainingArguments
+
 
 
     training_args = TrainingArguments(  # we can overwrite the trainer, and make use our own optim
@@ -107,31 +93,6 @@ def train(args):
 
     # optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
-    # for epoch in range(1, args.epochs + 1):
-    #     model.train()
-    #     for batch_idx, (data, target) in enumerate(train_loader, 1):
-    #         data, target = data.to(device), target.to(device)  # RMEMEBER HIS CODE LOADS IN THE LOADER
-    #         optimizer.zero_grad()
-    #         output, loss = model(data, target)
-    #         #loss = F.nll_loss(output, target)
-    #         #loss.backward()
-    #         if is_distributed and not use_cuda:
-    #             # average gradients manually for multi-machine cpu case only
-    #             _average_gradients(model)
-    #         optimizer.step()
-    #         if batch_idx % args.log_interval == 0:
-    #             logger.info(
-    #                 "Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f}".format(
-    #                     epoch,
-    #                     batch_idx * len(data),
-    #                     len(train_loader.sampler),
-    #                     100.0 * batch_idx / len(train_loader),
-    #                     #loss.item(),
-    #                     loss,
-    #                 )
-    #             )
-    #     # test(model, test_loader, device)
-    # save_model(model, args.model_dir)
 
 # def test(model, test_loader, device):
 #     model.eval()
