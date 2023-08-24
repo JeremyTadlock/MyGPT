@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
 
 #import sagemaker_containers
 import torch
@@ -19,8 +20,10 @@ from dataloader import build_dataset
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler(sys.stdout))
+logger.info("Loaded all moduels")
 
 def train(args):
+    logger.info("Started training job")
     is_distributed = len(args.hosts) > 1 and args.backend is not None
     logger.debug("Distributed training - {}".format(is_distributed))
     use_cuda = args.num_gpus > 0  # two diff settings, not good
@@ -48,8 +51,10 @@ def train(args):
         torch.cuda.manual_seed(args.seed)
 
     # add parameters
+    merges_file, vocab_file = getEncoderFiles(args)
     from transformers import RobertaTokenizer
-    tokenizer = RobertaTokenizer.from_pretrained(args.model_dir, max_length=512)
+    #tokenizer = RobertaTokenizer.from_pretrained(args.vocab_file, args.merges_file, max_length=512)
+    tokenizer = RobertaTokenizer(vocab_file=vocab_file, merges_file=merges_file, max_length=512)
     # BPE tokenizer that comes with preprocessing and in a compatible format
 
     collate_fn = DataCollatorForLanguageModeling(
@@ -114,6 +119,15 @@ def train(args):
 #     )
 
 # This is used for running the model on an endpoint for infrencing
+
+def getEncoderFiles(args):
+    merges_file = Path(f"{args.merges_file}/encoder-merges.txt")
+    vocab_file = Path(f"{args.vocab_file}/encoder-vocab.json")
+    assert merges_file.exists(), f"Merge file not found at: {merges_file.resolve()}"
+    assert vocab_file.exists(), f"Vocab file not found at: {vocab_file.resolve()}"
+    
+    return(merges_file, vocab_file)
+
 def model_fn(model_dir):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = torch.nn.DataParallel(BigramLanguageModel())
@@ -180,6 +194,8 @@ if __name__ == "__main__":
     parser.add_argument("--current-host", type=str, default=os.environ.get("SM_CURRENT_HOST", 'rip'))
     parser.add_argument("--model-dir", type=str, default=os.environ.get("SM_MODEL_DIR", "."))
     parser.add_argument("--data-dir", type=str, default=os.environ.get("SM_CHANNEL_TRAINING", "input_data_files/openai_generated_text.txt"))
+    parser.add_argument("--vocab-file", type=str, default=os.environ.get("SM_CHANNEL_vocab", "default"))
+    parser.add_argument("--merges-file", type=str, default=os.environ.get("SM_CHANNEL_merges", "default"))
     parser.add_argument("--num-gpus", type=int, default=os.environ.get("SM_NUM_GPUS", torch.cuda.device_count()))
 
     train(parser.parse_args())
