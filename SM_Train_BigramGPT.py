@@ -13,6 +13,7 @@ import torch.utils.data.distributed
 
 from transformers import Trainer, TrainingArguments
 from transformers import DataCollatorForLanguageModeling
+from transformers import RobertaTokenizer
 
 from BigramGPT import BigramLanguageModel
 from dataloader import build_dataset
@@ -24,35 +25,35 @@ logger.info("Loaded all moduels")
 
 def train(args):
     logger.info("Started training job")
-    is_distributed = len(args.hosts) > 1 and args.backend is not None
-    logger.debug("Distributed training - {}".format(is_distributed))
-    use_cuda = args.num_gpus > 0  # two diff settings, not good
-    logger.debug("Number of gpus available - {}".format(args.num_gpus))
-    kwargs = {"num_workers": 1, "pin_memory": True} if use_cuda else {}
-    device = torch.device("cuda" if use_cuda else "cpu")
+    # is_distributed = len(args.hosts) > 1 and args.backend is not None
+    # logger.debug("Distributed training - {}".format(is_distributed))
+    # use_cuda = args.num_gpus > 0  # two diff settings, not good
+    # logger.debug("Number of gpus available - {}".format(args.num_gpus))
+    # kwargs = {"num_workers": 1, "pin_memory": True} if use_cuda else {}
+    # device = torch.device("cuda" if use_cuda else "cpu")
 
-    if is_distributed:
-        # Initialize the distributed environment.
-        world_size = len(args.hosts)
-        os.environ["WORLD_SIZE"] = str(world_size)
-        host_rank = args.hosts.index(args.current_host)
-        os.environ["RANK"] = str(host_rank)
-        dist.init_process_group(backend=args.backend, rank=host_rank, world_size=world_size)
-        logger.info(
-            "Initialized the distributed environment: '{}' backend on {} nodes. ".format(
-                args.backend, dist.get_world_size()
-            )
-            + "Current host rank is {}. Number of gpus: {}".format(dist.get_rank(), args.num_gpus)
-        )
+    # if is_distributed:
+    #     # Initialize the distributed environment.
+    #     world_size = len(args.hosts)
+    #     os.environ["WORLD_SIZE"] = str(world_size)
+    #     host_rank = args.hosts.index(args.current_host)
+    #     os.environ["RANK"] = str(host_rank)
+    #     dist.init_process_group(backend=args.backend, rank=host_rank, world_size=world_size)
+    #     logger.info(
+    #         "Initialized the distributed environment: '{}' backend on {} nodes. ".format(
+    #             args.backend, dist.get_world_size()
+    #         )
+    #         + "Current host rank is {}. Number of gpus: {}".format(dist.get_rank(), args.num_gpus)
+    #     )
 
-    # set the seed for generating random numbers
-    torch.manual_seed(args.seed)
-    if use_cuda:
-        torch.cuda.manual_seed(args.seed)
+    # # set the seed for generating random numbers
+    # torch.manual_seed(args.seed)
+    # if use_cuda:
+    #     torch.cuda.manual_seed(args.seed)
 
     # add parameters
     merges_file, vocab_file = getEncoderFiles(args)
-    from transformers import RobertaTokenizer
+    logger.info(f"Found log files {merges_file} and {vocab_file}.")
     #tokenizer = RobertaTokenizer.from_pretrained(args.vocab_file, args.merges_file, max_length=512)
     tokenizer = RobertaTokenizer(vocab_file=vocab_file, merges_file=merges_file, max_length=512)
     # BPE tokenizer that comes with preprocessing and in a compatible format
@@ -62,32 +63,40 @@ def train(args):
     )
 
     # parameter
-    dataset = build_dataset(args.data_dir, tokenizer, args.block_size)
-    logger.info(f"Finished loading dataset with {len(dataset)}examples")
+    if args.data_dir[-4:] != ".txt":
+        datafiles = [f"{args.data_dir}/{f}" for f in os.listdir(args.data_dir) if f[-4:] == ".txt"]  # grab all text files in datadir
+    else:
+        datafiles = [args.data_dir]
+
+    dataset = build_dataset(datafiles, tokenizer, args.block_size, num_proc=16)
+    dataset = dataset.train_test_split(test_size=0.05)
+    logger.info(f"Finished loading dataset with {len(dataset['train'])} training examples and {len(dataset['test'])} testing examples ")
 
     model = BigramLanguageModel(bpe_vocab_size=args.bpe_vocab_size, num_embeddings=513, block_size=args.block_size, num_heads=args.head_num, num_layers=args.head_num, dropout=0.2)
-
-
-
 
     training_args = TrainingArguments(  # we can overwrite the trainer, and make use our own optim
         output_dir=args.model_dir,
         overwrite_output_dir=True,
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
-        save_steps=10_000,
-        save_total_limit=2,
+        save_steps=1_000,
+        save_total_limit=3,
+        logging_strategy="epoch",
+        disable_tqdm=True,
+        evaluation_strategy="steps",
+        eval_steps=1_000
     )
 
     trainer = Trainer(
         model=model,
         args=training_args,
         data_collator=collate_fn,
-        train_dataset=dataset,
+        train_dataset=dataset['train'],
+        eval_dataset=dataset['test']
     )
 
     trainer.train() 
-    trainer.save_model("./whatthisuwu")
+    trainer.save_model(args.model_dir)  # will this overwrite? Is it needed?
 
     # if is_distributed and use_cuda:
     #     # multi-machine multi-gpu case
@@ -121,8 +130,10 @@ def train(args):
 # This is used for running the model on an endpoint for infrencing
 
 def getEncoderFiles(args):
-    merges_file = Path(f"{args.merges_file}/encoder-merges.txt")
-    vocab_file = Path(f"{args.vocab_file}/encoder-vocab.json")
+    merges_file = Path(f"{args.merges_file}/merges.txt")
+    vocab_file = Path(f"{args.vocab_file}/vocab.json")
+    print(f"Files found in vocab: {os.listdir(args.vocab_file)}")
+    print(f"Files found in merges: {os.listdir(args.merges_file)}")
     assert merges_file.exists(), f"Merge file not found at: {merges_file.resolve()}"
     assert vocab_file.exists(), f"Vocab file not found at: {vocab_file.resolve()}"
     
@@ -153,15 +164,15 @@ if __name__ == "__main__":
         help="input batch size for training (default: 64)",
     )
     parser.add_argument(
-        "--bpe_vocab_size", type=int, default=6500, metavar="bpe", help="vocab size of the bpe encoder"
+        "--bpe_vocab_size", type=int, default=7000, metavar="bpe", help="vocab size of the bpe encoder"
     )
     parser.add_argument(
-        "--block_size", type=int, default=256, help="Max content length for predictions"
+        "--block_size", type=int, default=128, help="Max content length for predictions"
     )
     parser.add_argument(
         "--epochs",
         type=int,
-        default=50,
+        default=5,
         metavar="N",
         help="number of epochs to train (default: 6500)",
     )
@@ -170,10 +181,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("--seed", type=int, default=1, metavar="S", help="random seed (default: 1)")
     parser.add_argument(
-        "--head_num", type=int, default=1, metavar="HN", help="number of heads in the model"
+        "--head_num", type=int, default=3, metavar="HN", help="number of heads in the model"
     )
     parser.add_argument(
-        "--layer_num", type=int, default=1, metavar="LN", help="number of layers in the model"
+        "--layer_num", type=int, default=3, metavar="LN", help="number of layers in the model"
     )
     parser.add_argument(
         "--log-interval",
@@ -193,9 +204,9 @@ if __name__ == "__main__":
     parser.add_argument("--hosts", type=list, default=json.loads(os.environ.get("SM_HOSTS", "[]")))
     parser.add_argument("--current-host", type=str, default=os.environ.get("SM_CURRENT_HOST", 'rip'))
     parser.add_argument("--model-dir", type=str, default=os.environ.get("SM_MODEL_DIR", "."))
-    parser.add_argument("--data-dir", type=str, default=os.environ.get("SM_CHANNEL_TRAINING", "input_data_files/openai_generated_text.txt"))
-    parser.add_argument("--vocab-file", type=str, default=os.environ.get("SM_CHANNEL_vocab", "default"))
-    parser.add_argument("--merges-file", type=str, default=os.environ.get("SM_CHANNEL_merges", "default"))
+    parser.add_argument("--data-dir", type=str, default=os.environ.get("SM_CHANNEL_TRAIN", "input_data_files/kant.txt"))
+    parser.add_argument("--vocab-file", type=str, default=os.environ.get("SM_CHANNEL_VOCAB", "./tests/KantaiBERT"))
+    parser.add_argument("--merges-file", type=str, default=os.environ.get("SM_CHANNEL_MERGES", "./tests/KantaiBERT"))
     parser.add_argument("--num-gpus", type=int, default=os.environ.get("SM_NUM_GPUS", torch.cuda.device_count()))
 
     train(parser.parse_args())
