@@ -1,33 +1,39 @@
 from math import ceil, floor
 from multiprocess import set_start_method
-set_start_method("fork")  # for multiprocessing I think you need to set this on windows to fork
 from typing import List
 from functools import partial
 
 import pyarrow as pa
-from datasets import Dataset
+from datasets import Dataset, load_dataset
 import torch
 
 from  tokenizers.pre_tokenizers import BertPreTokenizer
 
+#set_start_method("fork")  # for multiprocessing I think you need to set this on windows to fork
+
 class chunkyText(Dataset):
     #preT = BertPreTokenizer()
 
-    def __init__(self, file, chunk_size):#, block_size, tokenizer):
+    def __init__(self, files, chunk_size):#, block_size, tokenizer):
         # chunks is the strings to break the dataset into for better multiprocessing
         # add an option with chunk_size=0 for full data
 
         # self.block_size = block_size
         # self.tokenizer = tokenizer
         self.chunks = []
-        with open(file, encoding="utf-8") as f:
-            text = f.read()
-            start_idx = 0
-            while start_idx < len(text):
-                end_idx = min(start_idx + chunk_size, len(text))
-                chunk = text[start_idx:end_idx]
-                self.chunks.append(chunk)
-                start_idx = end_idx
+        if type(files) != list:
+            files = [files]
+        
+        for file in files:
+            with open(file, encoding="utf-8") as f:
+                text = f.read()
+                start_idx = 0
+                while start_idx < len(text):
+                    end_idx = min(start_idx + chunk_size, len(text))
+                    chunk = text[start_idx:end_idx]
+                    self.chunks.append(chunk)
+                    start_idx = end_idx
+
 
         # sets all of the needed vars underthehood for more complex dataset features
         chunks = pa.array(self.chunks, type=pa.string())
@@ -49,7 +55,7 @@ class chunkyText(Dataset):
     
 def processShard(shard, block_size, tokenizer, rowname=None):
     if rowname:
-        shard = shard[rowname]
+        shard = shard[rowname][0]
     preT = BertPreTokenizer()
     """Takes in a shard and outputs as many valid token vectors as possible"""
     tokenpos = preT.pre_tokenize_str(shard)
@@ -60,7 +66,7 @@ def processShard(shard, block_size, tokenizer, rowname=None):
         return({"input_ids":[]})  # no blocks from chunk
     
     tokenized = []
-    for startidx in range(1, validBlockCount*block_size, block_size):
+    for startidx in range(1, validBlockCount*block_size, block_size):  # skips the first and last tokens
         firsttok = tokenpos[startidx]
         lasttok = tokenpos[startidx+block_size]
         firstidx = firsttok[-1][0]
@@ -73,14 +79,28 @@ def processShard(shard, block_size, tokenizer, rowname=None):
         else:
             print("bad tokens")
 
-    # datadict = {key:[x[key] for x in tokenized if key in x] for key in tokenized[0].keys()}
-    datadict = {"input_ids": torch.tensor(e, dtype=torch.long) for e in tokenized}
-    return(datadict)
+    data = {"input_ids":[torch.tensor(e, dtype=torch.long) for e in tokenized]}
+    # data = [{"input_ids":torch.tensor(e, dtype=torch.long)} for e in tokenized]
+    return(data)
 
-def build_dataset(file, tokenizer, block_size=125, chunk_size=10000):
+def build_dataset(files, tokenizer, block_size=125, chunk_size=10000, num_proc=1):
 
-    dataset = chunkyText(file, chunk_size)
-    processingPartial = partial(processShard, block_size=block_size, tokenizer=tokenizer, rowname="chunks")
-    encodedDataset = dataset.map(processingPartial, num_proc=12)
+    if chunk_size:
+        dataset = chunkyText(files, chunk_size)
+        processingPartial = partial(processShard, block_size=block_size, tokenizer=tokenizer, rowname="chunks")
+        encodedDataset = dataset.map(processingPartial, num_proc=num_proc, remove_columns=dataset.column_names, batched=True, batch_size=1)
+    # else:
+    #     dataset = load_dataset("text", data_files=[file])
+    #     processingPartial = partial(processShard, block_size=block_size, tokenizer=tokenizer, rowname="chunks")
+    #     encodedDataset = dataset.map(processingPartial, num_proc=num_proc)
+
 
     return(encodedDataset)
+
+
+# if __name__ == "__main__":
+#     from transformers import RobertaTokenizer
+#     # like could you just use the old tokenizer here? Or is Roberta adding some new magic that the old one didnt have that we just didnt use earlier
+#     tokenizer = RobertaTokenizer.from_pretrained("./tests/KantaiBERT", max_length=512)
+#     test = processShard("This is a string with alot of words, to test the chunking", 5, tokenizer=tokenizer)
+#     print(test)

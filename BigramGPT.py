@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from transformers.modeling_outputs import CausalLMOutput
+from transformers import PreTrainedModel
+#from transformers.modeling_outputs import CausalLMOutput
 
 
 # Self-Attention model
@@ -156,7 +157,7 @@ class BigramLanguageModel(nn.Module):
             idx_cond = idx[:, -self.block_size:]
 
             # get predictions
-            logits, loss = self(idx_cond)
+            loss, logits = self(idx_cond)
 
             # focus only on the last time step
             logits = logits[:, -1, :]  # Transforms from (B, T) to (B, C)
