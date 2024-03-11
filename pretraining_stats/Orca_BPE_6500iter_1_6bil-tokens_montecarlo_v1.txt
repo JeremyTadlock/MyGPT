@@ -1,0 +1,36 @@
+step 0: train loss 9.1047, val loss 9.1053
+step 500: train loss 4.8469, val loss 4.8482
+step 1000: train loss 4.3642, val loss 4.3616
+step 1500: train loss 4.0804, val loss 4.0890
+step 2000: train loss 3.8586, val loss 3.8651
+step 2500: train loss 3.7186, val loss 3.7331
+step 3000: train loss 3.6284, val loss 3.6251
+step 3500: train loss 3.5474, val loss 3.5423
+step 4000: train loss 3.4879, val loss 3.4819
+step 4500: train loss 3.4401, val loss 3.4442
+step 5000: train loss 3.4028, val loss 3.4060
+step 5500: train loss 3.3694, val loss 3.3711
+step 6000: train loss 3.3349, val loss 3.3293
+step 6500: train loss 3.3038, val loss 3.3157
+
+Hyperparameters used:
+batch_size = 64  # Number of sequences processed in parallel
+block_size = 256  # Max content length for predictions
+max_iters = 6500  # was 3000 with lr=1e-2
+eval_interval = 500  # how often we check train/val loss and generate autocompleted tokens.
+learning_rate = 1e-3  # was 1e-2 then 1e-3
+device = 'cuda' if torch.cuda.is_available() else 'cpu'  # try to use pytorch's CUDA for GPU parallel processing
+eval_iters = 200
+num_embeddings = 384  # this number was chosen because 384/6 = 64 (standard)
+num_heads = 6
+num_layers = 6
+
+tokenizer - BPE
+vocab_size = 50000
+min_freq = 2
+
+
+took around 48-72 hours to train.
+16,506,444 (16.5Million) hyperparameters.
+
+

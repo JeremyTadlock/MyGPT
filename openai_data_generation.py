@@ -1,5 +1,5 @@
 import openai
-import cchardet as chardet
+#import cchardet as chardet
 import time
 
 data = ""

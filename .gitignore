@@ -1,1 +1,14 @@
 /input_data_files/
+venv/
+__pycache__/
+wanddb/
+.idea/
+.vscode/
+tests/
+checkpoint*/
+
+encoder_directory/
+input_data_files/
+
+*.pth
+*.bin

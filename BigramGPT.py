@@ -125,8 +125,6 @@ def estimate_loss():
     model.train()
     return out
 '''
-
-
 # Self-Attention model
 # The reason this is self-attention is because the keys/queries/values all come from the same source
 # (source = x) <- see forward function
@@ -139,7 +137,7 @@ def estimate_loss():
 class Head(nn.Module):
     # ONE head of self-attention
 
-    def __init__(self, head_size):
+    def __init__(self, head_size, num_embeddings, block_size, dropout):
         super().__init__()
         self.key = nn.Linear(num_embeddings, head_size, bias=False)
         self.query = nn.Linear(num_embeddings, head_size, bias=False)
@@ -175,9 +173,9 @@ class Head(nn.Module):
 # Run multiple heads in parallel
 class MultipleHeads(nn.Module):
 
-    def __init__(self, num_heads, head_size):
+    def __init__(self, num_heads, head_size, num_embeddings, block_size, dropout):
         super().__init__()
-        self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
+        self.heads = nn.ModuleList([Head(head_size, num_embeddings, block_size, dropout) for _ in range(num_heads)])
         self.projection = nn.Linear(head_size * num_heads, num_embeddings)
         self.dropout = nn.Dropout(dropout)
 
@@ -190,12 +188,12 @@ class MultipleHeads(nn.Module):
 # feedforward consisting of a linear layer, follow by a ReLu nonlinear function
 class FeedForward(nn.Module):
 
-    def __init__(self, n_embd):
+    def __init__(self, num_embeddings, dropout):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(n_embd, 4 * n_embd),
+            nn.Linear(num_embeddings, 4 * num_embeddings),
             nn.ReLU(),  # the default activation when developing our multilayer Perceptron
-            nn.Linear(4 * n_embd, n_embd),  # projection layer going back into residual pathway
+            nn.Linear(4 * num_embeddings, num_embeddings),  # projection layer going back into residual pathway
             nn.Dropout(dropout),
         )
 
@@ -206,15 +204,15 @@ class FeedForward(nn.Module):
 # Transformer block: communication followed by computation
 class Block(nn.Module):
 
-    def __init__(self, n_embd, num_head):
+    def __init__(self, num_embeddings, num_heads, block_size, dropout):
         super().__init__()
-        head_size = n_embd // num_head
-        self.sa = MultipleHeads(num_head, head_size)
-        self.ffwd = FeedForward(n_embd)
+        head_size = num_embeddings // num_heads
+        self.sa = MultipleHeads(num_heads, head_size, num_embeddings, block_size, dropout)
+        self.ffwd = FeedForward(num_embeddings, dropout)
 
         # Pytorch's pre-norm formulation
-        self.ln1 = nn.LayerNorm(n_embd)
-        self.ln2 = nn.LayerNorm(n_embd)
+        self.ln1 = nn.LayerNorm(num_embeddings)
+        self.ln2 = nn.LayerNorm(num_embeddings)
 
     def forward(self, x):
         x = x + self.sa(self.ln1(x))
@@ -225,37 +223,51 @@ class Block(nn.Module):
 # Bigram language model
 class BigramLanguageModel(nn.Module):
 
-    def __init__(self):
+    # dropout is a way to prevent overfitting in large neural networks. it works by having every forward-backward pass
+    # randomly shut off a subset of neurons(set to 0). It basically splits training into multiple sub-networks then
+    # re-merges them at testing time.
+    # link here: https://www.cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf
+
+    #block_size: Max content length for predictions
+    #num_embeddings: this number was chosen because 384/6 = 64 (standard)
+    def __init__(self, bpe_vocab_size=1000, num_embeddings=384, block_size=256, num_heads=6, num_layers=6, dropout=0.2):
         super().__init__()
 
         # each token reads off the logits for the next token using lookup table
+        self.block_size = block_size
         self.token_embedding_table = nn.Embedding(bpe_vocab_size, num_embeddings)
         self.position_embedding_table = nn.Embedding(block_size, num_embeddings)
-        self.blocks = nn.Sequential(*[Block(num_embeddings, num_head=num_heads) for _ in range(num_layers)])
+        self.blocks = nn.Sequential(*[Block(num_embeddings, num_heads, block_size, dropout) for _ in range(num_layers)])
         self.ln_f = nn.LayerNorm(num_embeddings)
         self.lm_head = nn.Linear(num_embeddings, bpe_vocab_size)
 
     # forward feeding
-    def forward(self, idx, targets=None):
-        B, T = idx.shape
+    def forward(self, input_ids: torch.Tensor = None, labels=None, attention_mask=None):
+        # The attention mask isnt used here, but is needed to not crash
+        B, T = input_ids.shape
+        device = input_ids.device
 
         # idx and targets are (B,T) tensors of integers
-        token_embeddings = self.token_embedding_table(idx)  # (B,T,embeddings)
+        token_embeddings = self.token_embedding_table(input_ids)  # (B,T,embeddings)
         positional_embeddings = self.position_embedding_table(torch.arange(T, device=device))  # (T,C)
         x = token_embeddings + positional_embeddings  # encode info w/ tok & pos embeddings(B,T,C)
         x = self.blocks(x)  # apply multiple heads of self-attention(feed x into head). (B,T,C)
         x = self.ln_f(x)  # (B,T,C)
         logits = self.lm_head(x)  # (B,T,vocab_size)
 
-        if targets is None:
+        if labels is None:
             loss = None
         else:
             B, T, C = logits.shape
             logits = logits.view(B * T, C)
-            targets = targets.view(B * T)
-            loss = F.cross_entropy(logits, targets)
+            labels = labels.view(B * T)
+            loss = F.cross_entropy(logits, labels)
 
-        return logits, loss
+        return loss, logits  # Swapped these because thats the way hf expects the output.
+        # return CausalLMOutput(
+        #         loss=loss,
+        #         logits=logits
+        #     )
 
     def generate(self, idx, max_new_tokens, eos_token_id=417):
         #  idx is (B, T) array of indices in the current context
@@ -266,6 +278,11 @@ class BigramLanguageModel(nn.Module):
 
             # get predictions
             logits, loss = self(idx)
+            # crop idx to the last block_size tokens
+            idx_cond = idx[:, -self.block_size:]
+
+            # get predictions
+            loss, logits = self(idx_cond)
 
             # focus only on the last time step
             logits = logits[:, -1, :]  # Transforms from (B, T) to (B, C)
