@@ -1,0 +1,15 @@
+Model Name: Tinystories_CustomStories
+    Batch Size: 64
+    Block Size: 256
+    Max Iterations: 6000
+    Eval Interval: 1000
+    Learning Rate: 0.001
+    Device: cuda
+    Eval Iters: 200
+    Num Embeddings: 384
+    Num Heads: 6
+    Num Layers: 6
+    BPE Vocab Size: 10000
+    Accumulation Steps: 4
+    Dropout: 0.2
+    Training time: 32511.33040857315
