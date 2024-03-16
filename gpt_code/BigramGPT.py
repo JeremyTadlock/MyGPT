@@ -406,7 +406,7 @@ if __name__ == '__main__':
             print("------------------------------------------------------")
 
     # Save pretrained model
-    torch.save(model.state_dict(), '../models/shellcode_v2.6.pth')
+    torch.save(model.state_dict(), '../shellcode_gpt_example/shellcode_v2.6.pth')
 
     # Create target directory & all intermediate directories if don't exists
     # Then save the encoder

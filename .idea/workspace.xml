@@ -5,21 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="88b9a5fc-21f3-42d4-a6b4-0262b4744f74" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/gpt_code/BigramGPT.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gpt_code/gpt_runner.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gpt_code/gpt_tokenizers.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gpt_code/original_bigram_gpt.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/BigramGPT.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/Tinystories_CustomStories_6000epochs.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/bigramgpt.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dataloader.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/file_splitter.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/gpt_runner.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/gpt_tokenizers.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/gpt_code/gpt_runner.py" beforeDir="false" afterPath="$PROJECT_DIR$/gpt_code/gpt_runner.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/openai_data_generation.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/original_bigram_gpt.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/parquet_to_json.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

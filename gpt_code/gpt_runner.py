@@ -3,9 +3,9 @@ import gpt_tokenizers
 from original_bigram_gpt import BigramLanguageModel, device, block_size  # Assuming 'device' is defined and exported in BigramGPT module
 
 # Paths for model and tokenizer
-model_path = '../models/shellcode_v2.6.pth'
-vocab_path = '../encoder_directory/shellcode_v2.6-vocab.json'
-merges_path = '../encoder_directory/shellcode_v2.6-merges.txt'
+model_path = '../shellcode_gpt_example/shellcode_v2.6.pth'
+vocab_path = '../shellcode_gpt_example/shellcode_v2.6-vocab.json'
+merges_path = '../shellcode_gpt_example/shellcode_v2.6-merges.txt'
 
 # Load the model
 print("Loading model")
@@ -37,7 +37,7 @@ more_questions = ["<question> Decrement eax by 1.",
 even_more_questions = ["<question> Write assembly code to decrement the contents of the ebx register by 1, and then perform a specific operation if the result is negative."]
 
 # Encoding the question and converting to tensor
-encoded_questions = [byte_pair_encoder.encode(question) for question in even_more_questions]
+encoded_questions = [byte_pair_encoder.encode(question) for question in questions]
 
 
 
