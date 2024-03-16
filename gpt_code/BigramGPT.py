@@ -1,43 +1,65 @@
+import os
+import time
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import gpt_tokenizers
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, RandomSampler
 from torch.cuda.amp import GradScaler, autocast
 import bisect
 from itertools import accumulate
 
-batch_size = 64  # Number of sequences processed in parallel
-block_size = 256  # Max content length for predictions
-max_iters = 6000  # was 3000 with lr=1e-2
-eval_interval = 1000  # how often we check train/val loss and generate autocompleted tokens.
+batch_size = 32  # Number of sequences processed in parallel
+block_size = 128  # Max content length for predictions
+max_iters = 900  # was 3000 with lr=1e-2
+eval_interval = 100  # how often we check train/val loss and generate autocompleted tokens.
 learning_rate = 1e-3  # was 1e-2 then 1e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'  # try to use pytorch's CUDA for GPU parallel processing
-print("device:", device)
 eval_iters = 200
 num_embeddings = 384  # this number was chosen because 384/6 = 64 (standard)
-num_heads = 6
-num_layers = 6
-bpe_vocab_size = 1000
-
+num_heads = 16
+num_layers = 16
+bpe_vocab_size = 25000
+accumulation_steps = 4
+loss_tracker = []
 # dropout is a way to prevent overfitting in large neural networks. it works by having every forward-backward pass
 # randomly shut off a subset of neurons(set to 0). It basically splits training into multiple sub-networks then
 # re-merges them at testing time.
 dropout = 0.2  # link here: https://www.cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf
 
 
+def get_model_info():
+    # convert list to string
+    loss_tracker_str = '\n'.join(str(loss) for loss in loss_tracker)
+
+    # Gather model info in a string
+    model_info = f"""
+    Model Name: Tinystories_CustomStories
+    Hyperparameter Count: {hyperparameter_count}
+    Batch Size: {batch_size}
+    Block Size: {block_size}
+    Max Iterations: {max_iters}
+    Eval Interval: {eval_interval}
+    Learning Rate: {learning_rate}
+    Device: {device}
+    Eval Iters: {eval_iters}
+    Num Embeddings: {num_embeddings}
+    Num Heads: {num_heads}
+    Num Layers: {num_layers}
+    BPE Vocab Size: {bpe_vocab_size}
+    Accumulation Steps: {accumulation_steps}
+    Dropout: {dropout}
+    Training time: {runtime}
+    loss tracker: {loss_tracker_str}
+    """
+    return model_info.strip()  # Remove leading/trailing newlines
+
 # load data
 def load_batch(split):
     data_loader = train_loader if split == 'train' else val_loader
-    for batch in data_loader:
-
-        x, y = batch
-
-        x = torch.stack(x)
-
-        y = torch.stack(y)
-        x, y = x.to(device), y.to(device)
-        yield x, y
+    for x, y in data_loader:
+        yield x.to(device), y.to(device)
 
 # gets rid of noise when getting loss. Averages the splits instead of randomly sampling(which creates noise)
 @torch.no_grad()
@@ -51,63 +73,39 @@ def estimate_loss():
             X, Y = next(load_batch(split))
             logits, loss = model(X, Y)
             losses[k] = loss.item()
-        out[split] = losses.mean()
+        out[split] = losses.mean()  # Average the losses over the iterations
     print("done looping splits")
     model.train()
     return out
 
-
 class TextFileDataset(Dataset):
-    def __init__(self, file_paths, block_size, byte_pair_encoder, chunk_size=1024 * 1024):
-        self.file_paths = file_paths
-        self.block_size = block_size
-        self.byte_pair_encoder = byte_pair_encoder
-        self.chunk_size = chunk_size
-        self.lengths = []
-
+    def __init__(self, file_paths, block_size, byte_pair_encoder):
+        self.data = []
         for file_path in file_paths:
-            print(f"Processing {file_path}")
-            total_length = 0
-            for chunk in self.read_file_in_chunks(file_path):
-                encoded_data = self.byte_pair_encoder.encode(chunk)
-                total_length += len(encoded_data)
-            self.lengths.append(total_length)
-
-        self.cumulative_lengths = [0] + list(accumulate(self.lengths))
+            with open(file_path, "r", encoding="utf8") as f:
+                text = f.read()
+            encoded_data = byte_pair_encoder.encode(text)
+            self.data.extend(encoded_data)
+        self.block_size = block_size
 
     def __len__(self):
-        return sum(self.lengths) - self.block_size * len(self.file_paths)
+        return len(self.data) - self.block_size
 
     def __getitem__(self, idx):
-        file_idx = bisect.bisect_right(self.cumulative_lengths, idx) - 1
-        file_offset = idx - self.cumulative_lengths[file_idx]
-        file_path = self.file_paths[file_idx]
-
-        encoded_data = []
-        with open(file_path, "r", encoding="utf8") as f:
-            while len(encoded_data) < file_offset + self.block_size + 1:
-                chunk = f.read(self.chunk_size)
-                if not chunk:
-                    break
-                encoded_data.extend(self.byte_pair_encoder.encode(chunk))
-
-        seq = encoded_data[file_offset:file_offset + self.block_size + 1]
-        return seq[:-1], seq[1:]
-
-    def read_file_in_chunks(self, file_path):
-        with open(file_path, "r", encoding="utf8") as f:
-            while True:
-                chunk = f.read(self.chunk_size)
-                if not chunk:
-                    break
-                yield chunk
+        # Grab a chunk of (block_size + 1) tokens
+        chunk = self.data[idx:idx + self.block_size + 1]
+        x = torch.tensor(chunk[:-1], dtype=torch.long)
+        y = torch.tensor(chunk[1:], dtype=torch.long)
+        return x, y
 
 
 def collate_fn(batch):
-    lengths = torch.tensor([len(seq) for seq in batch])
-    padded_batch = torch.nn.utils.rnn.pad_sequence(batch, batch_first=True)
-    return padded_batch, lengths
+    # collate_fn isn't needed unless im using sequences with variable lengths, to the point where i need to pad
+    # sequences in order to keep them at the same length.
 
+    x = torch.stack([item[0] for item in batch])
+    y = torch.stack([item[1] for item in batch])
+    return x.to(device), y.to(device)
 
 '''
 # Original loss estimation code. not as accurate as it doesnt use the monte carlo method, but it runs faster.
@@ -228,8 +226,8 @@ class BigramLanguageModel(nn.Module):
     # re-merges them at testing time.
     # link here: https://www.cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf
 
-    #block_size: Max content length for predictions
-    #num_embeddings: this number was chosen because 384/6 = 64 (standard)
+    # block_size: Max content length for predictions
+    # num_embeddings: this number was chosen because 384/6 = 64 (standard)
     def __init__(self, bpe_vocab_size=1000, num_embeddings=384, block_size=256, num_heads=6, num_layers=6, dropout=0.2):
         super().__init__()
 
@@ -245,7 +243,6 @@ class BigramLanguageModel(nn.Module):
     def forward(self, input_ids: torch.Tensor = None, labels=None, attention_mask=None):
         # The attention mask isnt used here, but is needed to not crash
         B, T = input_ids.shape
-        device = input_ids.device
 
         # idx and targets are (B,T) tensors of integers
         token_embeddings = self.token_embedding_table(input_ids)  # (B,T,embeddings)
@@ -261,7 +258,7 @@ class BigramLanguageModel(nn.Module):
             B, T, C = logits.shape
             logits = logits.view(B * T, C)
             labels = labels.view(B * T)
-            loss = F.cross_entropy(logits, labels)
+            loss = F.cross_entropy(logits, labels, reduction='mean')
 
         return loss, logits  # Swapped these because thats the way hf expects the output.
         # return CausalLMOutput(
@@ -303,10 +300,13 @@ class BigramLanguageModel(nn.Module):
 
 
 if __name__ == '__main__':
+    start_time = time.time()
+    print("device:", device)
+
     # Grab data from datasets
     print("Loading dataset")
-    train_files = ["input_data_files\\train_TinyStoriesV2-GPT4-valid.txt"]
-    val_files = ["input_data_files\\valid_TinyStoriesV2-GPT4-valid.txt"]
+    train_files = ["../input_data_files\\train_Shellcode_IA32.txt", "../input_data_files\\train_Extendend_Shellcode_IA32.txt"]
+    val_files = ["../input_data_files\\valid_Shellcode_IA32.txt", "../input_data_files\\valid_Extendend_Shellcode_IA32.txt"]
 
     # Statistics about imported dataset(s)
     # print(len(dataset))
@@ -338,22 +338,32 @@ if __name__ == '__main__':
     print("Importing datasets")
     train_dataset = TextFileDataset(train_files, block_size, byte_pair_encoder)
     val_dataset = TextFileDataset(val_files, block_size, byte_pair_encoder)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+    # Note, pin_memory= True means that there will be a higher RAM usage as a tradeoff for better training speeds.
+    # Can be turned off if memory requirements are not met
+
+    # IMPORTANT: if distributed training is added(multiple gpus) use DistributedSampler instead
+    # This sampler ensures that each GPU receives a unique subset of the data, enabling efficient distributed training.
+    train_sampler = RandomSampler(train_dataset, replacement=True, num_samples=len(train_dataset))
+    train_loader = DataLoader(train_dataset, sampler=train_sampler, batch_size=batch_size,
+                              num_workers=16, prefetch_factor=8, pin_memory=True)
+
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+                            num_workers=16, prefetch_factor=8, pin_memory=True)
     print("Loading model")
-    model = BigramLanguageModel()
+    model = BigramLanguageModel(bpe_vocab_size=bpe_vocab_size, num_embeddings=num_embeddings, block_size=block_size, num_heads=num_heads, num_layers=num_layers, dropout=dropout)
     print("move to cuda")
     m = model.to(device)  # CUDA!!1!1
 
     # Model's parameter count
     print("Loading hyperparameter count")
-    print(sum(p.numel() for p in m.parameters()) / 1e6, 'M parameters')
+    hyperparameter_count = (sum(p.numel() for p in m.parameters()) / 1e6, 'M parameters')
+    print(hyperparameter_count)
 
     # using Pytorch's adamW optimizer
     print("Loading optimizer")
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
-    accumulation_steps = 4
     scaler = GradScaler()
     print("Looping over iterations")
     for iter in range(max_iters):
@@ -362,7 +372,6 @@ if __name__ == '__main__':
         optimizer.zero_grad(set_to_none=True)
 
         for step in range(accumulation_steps):
-            print("accumulation step:", step)
             # Sample a batch of data
             batch = next(load_batch('train'))
             xb, yb = batch
@@ -370,44 +379,62 @@ if __name__ == '__main__':
             # Forward pass under autocast
             with autocast():
                 logits, loss = model(xb, yb)
+                print(loss)
                 # Normalize the loss to account for accumulation
                 loss = loss / accumulation_steps
 
             # Backward pass (accumulate gradients)
+            print(loss)
             scaler.scale(loss).backward()
-
         # Step with optimizer
-        print("step optimizer")
         scaler.step(optimizer)
-        print("update scaler")
         scaler.update()
-        print("zero optimizer")
         optimizer.zero_grad(set_to_none=True)  # Ensure optimizer is zeroed at the end
 
 
         # Periodically evaluate the model and print out the loss and generated text
-        if iter % eval_interval == 0 and iter != 0 or iter == max_iters - 1:
+        if iter % eval_interval == 0 or iter == max_iters - 1:
             print("estimating loss")
             losses = estimate_loss()
-            print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+            log_string = f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
+            loss_tracker.append(log_string)
+            print(log_string)
             context = torch.zeros((1, 1), dtype=torch.long, device=device)
-            generated_text = m.generate(context, max_new_tokens=2500)[0].tolist()
+            generated_text = m.generate(context, max_new_tokens=500)[0].tolist()
             decoded_text = byte_pair_encoder.decode(generated_text)
             print(decoded_text)
             print("------------------------------------------------------")
 
     # Save pretrained model
-    torch.save(model.state_dict(), 'Tinystories_last_ten_percent_4000epochsv2.pth')
+    torch.save(model.state_dict(), '../models/shellcode_v2.6.pth')
 
     # Create target directory & all intermediate directories if don't exists
     # Then save the encoder
-    encoder_dir = 'encoder_directory'
-    tokenizer_name = 'Tinystories_last_ten_percent_4000epochsv2'
+    encoder_dir = '../encoder_directory'
+    tokenizer_name = 'shellcode_v2.6'
     byte_pair_encoder.save(encoder_dir, tokenizer_name)
+
+    # Record runtime
+    end_time = time.time()
+    runtime = end_time - start_time
+
+    # Create target directory for model_info if it doesn't exist
+    model_info_path = "../model_info"
+    if not os.path.exists(model_info_path):
+        os.makedirs(model_info_path)
+
+    # Call get_model_info to get the model configuration and parameters
+    model_info = get_model_info()
+
+    file_name = tokenizer_name + '.txt'
+    model_info_path = "../model_info"
+    file_path = os.path.join(model_info_path, file_name)
+    with open(file_path, 'w') as file:
+        file.write(model_info)
 
     # Generate from the model
     print("GENERATING SAMPLE TEXT")
-    for _ in range(5):
+    for _ in range(3):
         context = torch.zeros((1, 1), dtype=torch.long, device=device)
         print(byte_pair_encoder.decode(m.generate(context, max_new_tokens=1000)[0].tolist()))
         print("------------------------------------------------------")

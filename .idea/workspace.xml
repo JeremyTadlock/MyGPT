@@ -5,38 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="88b9a5fc-21f3-42d4-a6b4-0262b4744f74" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/Tinystories_CustomStories_6000epochs.pth" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Tinystories_CustomStories_6000epochs_v2.pth" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bigramgpt.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/encoder_directory/Tinystories_CustomStories_6000epochs-merges.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/encoder_directory/Tinystories_CustomStories_6000epochs-vocab.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/encoder_directory/Tinystories_CustomStories_6000epochs_v2-merges.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/encoder_directory/Tinystories_CustomStories_6000epochs_v2-vocab.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/file_splitter.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/input_data_files/TinyStoriesV2-GPT4-train.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/input_data_files/TinyStoriesV2-GPT4-valid.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/input_data_files/train_TinyStoriesV2-GPT4-valid.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/input_data_files/valid_TinyStoriesV2-GPT4-valid.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/model_info/Tinystories_CustomStories_6000epochs.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/model_info/Tinystories_CustomStories_6000epochs_v2.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/original_bigram_gpt.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/MyGPT.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/BigramGPT.py" beforeDir="false" afterPath="$PROJECT_DIR$/BigramGPT.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cleaned_data_text.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/encoder_directory/Orca_encoder-merges.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/encoder_directory/Orca_encoder-vocab.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/encoder_directory/encoder-merges.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/encoder_directory/encoder-vocab.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/gpt_runner.py" beforeDir="false" afterPath="$PROJECT_DIR$/gpt_runner.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gpt_tokenizers.py" beforeDir="false" afterPath="$PROJECT_DIR$/gpt_tokenizers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mygpt.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pretrained_models/BPE_8000iter_12mil-tokens_montecarlo_v1.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pretrained_models/Orca_BPE_6500iter_1_6bil-tokens_montecarlo_v1.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pretraining_stats/Orca_BPE_6500iter_1_6bil-tokens_montecarlo_v1.txt" beforeDir="false" />
+      <change afterPath="$PROJECT_DIR$/gpt_code/BigramGPT.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gpt_code/gpt_runner.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gpt_code/gpt_tokenizers.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gpt_code/original_bigram_gpt.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/BigramGPT.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Tinystories_CustomStories_6000epochs.pth" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/bigramgpt.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataloader.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/file_splitter.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/gpt_runner.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/gpt_tokenizers.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/openai_data_generation.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/original_bigram_gpt.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/parquet_to_json.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -68,8 +51,10 @@
   &quot;keyToString&quot;: {
     &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/coding/MyGPT/original_bigram_gpt.py&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/coding/MyGPT/gpt_code/gpt_runner.py&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
   <component name="PyConsoleOptionsProvider">
@@ -81,14 +66,14 @@
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="E:\coding\MyGPT" />
+      <recent name="E:\coding\MyGPT\models" />
+      <recent name="E:\coding\MyGPT\model_info" />
       <recent name="E:\coding\MyGPT\encoder_directory" />
-      <recent name="E:\coding\MyGPT\pretrained_models" />
       <recent name="E:\coding\MyGPT\input_data_files" />
-      <recent name="E:\coding\MyGPT\pretraining_stats" />
+      <recent name="E:\coding\MyGPT" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.gpt_runner">
+  <component name="RunManager">
     <configuration name="BigramGPT" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="MyGPT" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -102,7 +87,7 @@
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/BigramGPT.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/gpt_code/BigramGPT.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -120,11 +105,11 @@
       </envs>
       <option name="SDK_HOME" value="E:\Users\Admin\anaconda3\envs\bigram\python.exe" />
       <option name="SDK_NAME" value="bigram" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/gpt_code" />
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/gpt_runner.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/gpt_code/gpt_runner.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -146,7 +131,7 @@
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/original_bigram_gpt.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/gpt_code/original_bigram_gpt.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -192,6 +177,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1691319932649</updated>
+      <workItem from="1710386463112" duration="11000" />
     </task>
     <servers />
   </component>

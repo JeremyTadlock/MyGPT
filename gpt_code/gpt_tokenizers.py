@@ -42,11 +42,9 @@ class BytePairEncoder:
         self.vocab_size = vocab_size
         self.min_frequency = min_frequency
         self.special_tokens=[
-            "<s>",
-            "<pad>",
-            "</s>",
-            "<unk>",
-            "<mask>",
+            "<question>",
+            "<answer>",
+            "<eot>",
         ]
 
     def __call__(self, s):

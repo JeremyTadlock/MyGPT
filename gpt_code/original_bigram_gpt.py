@@ -8,18 +8,18 @@ import gpt_tokenizers
 from torch.utils.data import Dataset, DataLoader
 from torch.cuda.amp import GradScaler, autocast
 import os
+import optuna
 
-batch_size = 64  # Number of sequences processed in parallel
-block_size = 256  # Max content length for predictions
-max_iters = 6000  # was 3000 with lr=1e-2
-eval_interval = 2000  # how often we check train/val loss and generate autocompleted tokens.
-learning_rate = 1e-3  # was 1e-2 then 1e-3
+batch_size = 32  # Number of sequences processed in parallel
+block_size = 128  # Max content length for predictions
+max_iters = 2400  # was 3000 with lr=1e-2
+eval_interval = 100  # how often we check train/val loss and generate autocompleted tokens.
+learning_rate = 1e-4  # was 1e-2 then 1e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'  # try to use pytorch's CUDA for GPU parallel processing
-print("device:", device)
 eval_iters = 200
 num_embeddings = 384  # this number was chosen because 384/6 = 64 (standard)
-num_heads = 6
-num_layers = 6
+num_heads = 16
+num_layers = 16
 bpe_vocab_size = 25000
 accumulation_steps = 4
 loss_tracker = []
@@ -28,8 +28,21 @@ loss_tracker = []
 # re-merges them at testing time.
 dropout = 0.2  # link here: https://www.cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf
 
+def get_best_hyperparameters_bayesian_optimization(trial):
+    # Before i implement this i need to package the tokenizer training neatly into a class/def, then do the same for
+    # pretrianing.
+    test_batch_size = 32
+    test_block_size = 128
+    test_max_iters = 1800
+    test_eval_interval = 200
+    test_learning_rate = 1e-4
+    test_eval_iters = 200
+    test_num_embeddings = 384  # this number was chosen because 384/6 = 64 (standard)
+    test_num_heads = 16
+    test_num_layers = 16
+    test_accumulation_steps = 4
 def get_model_info():
-    #convert list to string
+    # convert list to string
     loss_tracker_str = '\n'.join(str(loss) for loss in loss_tracker)
 
     # Gather model info in a string
@@ -54,6 +67,7 @@ def get_model_info():
     """
     return model_info.strip()  # Remove leading/trailing newlines
 
+
 # load data
 def load_batch(split):
     data = train_data if split == 'train' else val_data
@@ -66,26 +80,25 @@ def load_batch(split):
 
 
 # gets rid of noise when getting loss. Averages the splits instead of randomly sampling(which creates noise)
-@torch.no_grad()
-def estimate_loss():
-    out = {}
-    model.eval()
-    for split in ['train', 'val']:
-        losses = torch.zeros(eval_iters)
-        for k in range(eval_iters):
-            X, Y = load_batch(split)
-            batch_losses = torch.zeros(batch_size)  # To store loss for each sample in the batch
-            for i in range(batch_size):  # <-- where monte carlo sampling comes in
-                # Generate a single sample (sequence) for each input in the batch
-                logits, loss = model(X[i:i + 1], Y[i:i + 1])  # Use X[i:i+1] to keep the dimensions
-                batch_losses[i] = loss.item()
-            losses[k] = batch_losses.mean()  # Average the losses for the batch samples
-        out[split] = losses.mean()  # Average the losses over the iterations
-    model.train()
-    return out
+# @torch.no_grad()
+# def estimate_loss():
+#     out = {}
+#     model.eval()
+#     for split in ['train', 'val']:
+#         losses = torch.zeros(eval_iters)
+#         for k in range(eval_iters):
+#             X, Y = load_batch(split)
+#             batch_losses = torch.zeros(batch_size)  # To store loss for each sample in the batch
+#             for i in range(batch_size):  # <-- where monte carlo sampling comes in
+#                 # Generate a single sample (sequence) for each input in the batch
+#                 logits, loss = model(X[i:i + 1], Y[i:i + 1])  # Use X[i:i+1] to keep the dimensions
+#                 batch_losses[i] = loss.item()
+#             losses[k] = batch_losses.mean()  # Average the losses for the batch samples
+#         out[split] = losses.mean()  # Average the losses over the iterations
+#     model.train()
+#     return out
 
 
-'''
 # Original loss estimation code. not as accurate as it doesnt use the monte carlo method, but it runs faster.
 @torch.no_grad()  # tell's pytorch we AREN'T using backpropagation, saving memory
 def estimate_loss():
@@ -100,7 +113,6 @@ def estimate_loss():
         out[split] = losses.mean()
     model.train()
     return out
-'''
 
 
 # Self-Attention model
@@ -170,7 +182,11 @@ class FeedForward(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(n_embd, 4 * n_embd),
-            nn.ReLU(),  # the default activation when developing our multilayer Perceptron
+
+            # NOTE: look into replacing with GELU or preferably Mish (Mish is an evolution of GELU that is less
+            # computationally expensive and relatively smoother)
+            nn.ReLU(),  # using ReLU as the default activation
+
             nn.Linear(4 * n_embd, n_embd),  # projection layer going back into residual pathway
             nn.Dropout(dropout),
         )
@@ -182,10 +198,10 @@ class FeedForward(nn.Module):
 # Transformer block: communication followed by computation
 class Block(nn.Module):
 
-    def __init__(self, n_embd, num_head):
+    def __init__(self, n_embd, num_heads):
         super().__init__()
-        head_size = n_embd // num_head
-        self.sa = MultipleHeads(num_head, head_size)
+        head_size = n_embd // num_heads
+        self.sa = MultipleHeads(num_heads, head_size)
         self.ffwd = FeedForward(n_embd)
 
         # Pytorch's pre-norm formulation
@@ -207,7 +223,7 @@ class BigramLanguageModel(nn.Module):
         # each token reads off the logits for the next token using lookup table
         self.token_embedding_table = nn.Embedding(bpe_vocab_size, num_embeddings)
         self.position_embedding_table = nn.Embedding(block_size, num_embeddings)
-        self.blocks = nn.Sequential(*[Block(num_embeddings, num_head=num_heads) for _ in range(num_layers)])
+        self.blocks = nn.Sequential(*[Block(num_embeddings, num_heads=num_heads) for _ in range(num_layers)])
         self.ln_f = nn.LayerNorm(num_embeddings)
         self.lm_head = nn.Linear(num_embeddings, bpe_vocab_size)
 
@@ -233,7 +249,7 @@ class BigramLanguageModel(nn.Module):
 
         return logits, loss
 
-    def generate(self, idx, max_new_tokens, eos_token_id= -1):
+    def generate(self, idx, max_new_tokens, eos_token_id=-1):
         #  idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
             # Crop idx to the last block_size tokens if necessary
@@ -278,7 +294,7 @@ class BigramLanguageModel(nn.Module):
             logits = logits[:, -1, :]  # Transforms from (B, T, C) to (B, C)
 
             # Apply softmax to convert to probabilities
-            probs = F.softmax(logits, dim=-1) # Also (B, C)
+            probs = F.softmax(logits, dim=-1)  # Also (B, C)
 
             if not is_first_iteration:
                 # Top-K filtering
@@ -286,11 +302,60 @@ class BigramLanguageModel(nn.Module):
                 top_k_probs = top_k_probs / torch.sum(top_k_probs, dim=-1, keepdim=True)  # Re-normalize
 
                 # Sample from the top k
-                idx_next = torch.multinomial(top_k_probs, num_samples=1) # (B, 1)
+                idx_next = torch.multinomial(top_k_probs, num_samples=1)  # (B, 1)
 
                 # Map sampled indices back to the original indices
                 idx_next = torch.gather(top_k_indices, -1, idx_next)
             else:
+                is_first_iteration = False
+                idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
+
+            # Check for the end of sequence token
+            if eos_token_id is not None and idx_next.item() == eos_token_id:
+                break
+
+            # Concatenate the next index
+            idx = torch.cat([idx, idx_next], dim=1)
+
+        return idx
+
+    def generate_top_p(self, idx, max_new_tokens, eos_token_id=-1, top_p=0.9, temperature=1.0):
+        is_first_iteration = True
+        # idx is (B, T) array of indices in the current context
+        for _ in range(max_new_tokens):
+
+            # Crop idx to the last block_size tokens if necessary
+            if idx.size(1) > block_size:
+                idx = idx[:, -block_size:]
+
+            # get predictions
+            logits, loss = self(idx)
+
+            # focus only on the last time step
+            logits = logits[:, -1, :] / temperature  # Apply temperature
+            # Apply softmax to convert to probabilities
+            probs = F.softmax(logits, dim=-1)  # Also (B, C)
+
+            if not is_first_iteration:
+                sorted_probs, sorted_indices = torch.sort(probs, descending=True, dim=-1)
+                cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+
+                # Find indices where cumulative probability exceeds top_p
+                indices_to_remove = cumulative_probs > top_p
+                indices_to_remove[:, 1:] = indices_to_remove[:, :-1].clone()
+                indices_to_remove[:, 0] = False
+
+                # Mask out tokens
+                sorted_probs[indices_to_remove] = 0
+                probs = sorted_probs / sorted_probs.sum(dim=-1, keepdim=True)
+
+                # Sample from the modified distribution
+                idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
+
+                # Map sampled indices back to the original indices
+                idx_next = torch.gather(sorted_indices, -1, idx_next)
+            else:
+                is_first_iteration = False
                 idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
 
             # Check for the end of sequence token
@@ -303,17 +368,14 @@ class BigramLanguageModel(nn.Module):
         return idx
 
 
-
-
 if __name__ == '__main__':
     start_time = time.time()
+    print("device:", device)
 
     # Grab data from datasets
     print("Loading dataset")
     dataset = ""
-    files = ["input_data_files\\TinyStoriesV2-GPT4-valid.txt", "input_data_files\\openai_generated_text_800.txt",
-             "input_data_files\\openai_generated_text_3000_0.txt", "input_data_files\\openai_generated_text_3000_1.txt",
-             "input_data_files\\openai_generated_text_3000_spooky.txt"]
+    files = ["../input_data_files/Shellcode_IA32.txt", "../input_data_files/Extendend_Shellcode_IA32.txt"]
     for file in files:
         with open(file, "r", encoding="utf8") as f:
             dataset = dataset + f.read() + '\n'
@@ -347,7 +409,7 @@ if __name__ == '__main__':
     # Split input data into train/test data - uses a 90%/10% split
     print("Splitting data")
 
-    chunk_size = 1000000  # Adjust the chunk size according to your memory capacity
+    chunk_size = 60000  # Adjust the chunk size according to your memory capacity
     train_chunks = []
     val_chunks = []
 
@@ -370,7 +432,7 @@ if __name__ == '__main__':
 
     train_data = torch.cat(train_chunks)
     val_data = torch.cat(val_chunks)
-    print("tokens in dataset", len(train_data)+len(val_data))
+    print("tokens in dataset", len(train_data) + len(val_data))
     print("Done splitting")
 
     print("Loading model")
@@ -387,7 +449,7 @@ if __name__ == '__main__':
     print("Loading optimizer")
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
-    scaler = GradScaler() # Setting up GradScaler for mixed precision
+    scaler = GradScaler()  # Setting up GradScaler for mixed precision
     # Training loop
     print("Looping over iterations")
     for iter in range(max_iters):
@@ -419,28 +481,29 @@ if __name__ == '__main__':
             log_string = f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
             loss_tracker.append(log_string)
             print(log_string)
-            context = torch.zeros((1, 1), dtype=torch.long, device=device)
-            generated_text = m.generate(context, max_new_tokens=2500)[0].tolist()
-            decoded_text = byte_pair_encoder.decode(generated_text)
-            print(decoded_text)
+            if iter != 0:
+                context = torch.zeros((1, 1), dtype=torch.long, device=device)
+                generated_text = m.generate(context, max_new_tokens=2500)[0].tolist()
+                decoded_text = byte_pair_encoder.decode(generated_text)
+                print(decoded_text)
             print("------------------------------------------------------")
 
     print("saving model and info")
     # Save pretrained model
-    torch.save(model.state_dict(), 'Tinystories_CustomStories_6000epochs_v2.pth')
+    torch.save(model.state_dict(), '../models/shellcode_v2.7.pth')
 
     # Create target directory & all intermediate directories if don't exists
     # Then save the encoder
-    encoder_dir = 'encoder_directory'
-    tokenizer_name = 'Tinystories_CustomStories_6000epochs_v2'
+    encoder_dir = '../encoder_directory'
+    tokenizer_name = 'shellcode_v2.7'
     byte_pair_encoder.save(encoder_dir, tokenizer_name)
 
     # Record runtime
     end_time = time.time()
-    runtime = end_time-start_time
+    runtime = end_time - start_time
 
     # Create target directory for model_info if it doesn't exist
-    model_info_path = "model_info"
+    model_info_path = "../model_info"
     if not os.path.exists(model_info_path):
         os.makedirs(model_info_path)
 
@@ -448,14 +511,14 @@ if __name__ == '__main__':
     model_info = get_model_info()
 
     file_name = tokenizer_name + '.txt'
-    model_info_path = "model_info"
+    model_info_path = "../model_info"
     file_path = os.path.join(model_info_path, file_name)
     with open(file_path, 'w') as file:
         file.write(model_info)
 
     # Generate from the model
     print("GENERATING SAMPLE TEXT")
-    for _ in range(10):
+    for _ in range(3):
         context = torch.zeros((1, 1), dtype=torch.long, device=device)
         print(byte_pair_encoder.decode(m.generate(context, max_new_tokens=1000)[0].tolist()))
         print("------------------------------------------------------")
