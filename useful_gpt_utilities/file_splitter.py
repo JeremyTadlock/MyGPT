@@ -1,7 +1,7 @@
 import os
 
 
-def split_file(original_file, split_ratio=0.8):
+def split_file(original_file, split_ratio=0.85):
     # Extract directory and filename from the original file path
     dir_name, filename = os.path.split(original_file)
 
@@ -29,5 +29,5 @@ def split_file(original_file, split_ratio=0.8):
 
 
 # Example usage
-original_file = '../input_data_files/Extendend_Shellcode_IA32.txt'
+original_file = '../input_data_files/50percent_TinyStoriesV2-GPT4-train.txt'
 split_file(original_file)

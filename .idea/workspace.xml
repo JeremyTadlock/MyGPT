@@ -5,10 +5,18 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="88b9a5fc-21f3-42d4-a6b4-0262b4744f74" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/gpt_code/bigram_gpt_dataloading.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gpt_code/train_tokenizer.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/useful_gpt_utilities/hdf5ify.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Tinystories_CustomStories_6000epochs.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/gpt_code/gpt_runner.py" beforeDir="false" afterPath="$PROJECT_DIR$/gpt_code/gpt_runner.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gpt_code/gpt_runner.py" beforeDir="false" afterPath="$PROJECT_DIR$/gpt_code/gpt_inference_testing.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gpt_code/original_bigram_gpt.py" beforeDir="false" afterPath="$PROJECT_DIR$/gpt_code/original_bigram_gpt.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/input_data_files/openai_generated_text_3000_spooky.txt" beforeDir="false" afterPath="$PROJECT_DIR$/input_data_files/openai_generated_text_3000_spooky.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/openai_data_generation.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/useful_gpt_utilities/file_splitter.py" beforeDir="false" afterPath="$PROJECT_DIR$/useful_gpt_utilities/file_splitter.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -29,8 +37,11 @@
     <option name="stateVersion" value="1" />
   </component>
   <component name="ProblemsViewState">
-    <option name="selectedTabId" value="CurrentFile" />
+    <option name="selectedTabId" value="DEPENDENCY_CHECKER_PROBLEMS_TAB" />
   </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1
+}</component>
   <component name="ProjectId" id="2Tbm0fKmfz3i6gZ1b2rt3uz8ueB" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -38,10 +49,26 @@
   </component>
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
+    &quot;Python.BigramGPT.executor&quot;: &quot;Run&quot;,
+    &quot;Python.file_splitter.executor&quot;: &quot;Run&quot;,
+    &quot;Python.gpt_inference_testing.executor&quot;: &quot;Run&quot;,
+    &quot;Python.hdf5ify.executor&quot;: &quot;Run&quot;,
+    &quot;Python.hdf5viewer.executor&quot;: &quot;Run&quot;,
+    &quot;Python.original_bigram_gpt.executor&quot;: &quot;Run&quot;,
+    &quot;Python.original_bigram_gpt_dataloading.executor&quot;: &quot;Run&quot;,
+    &quot;Python.t.executor&quot;: &quot;Run&quot;,
+    &quot;Python.train_tokenizer.executor&quot;: &quot;Run&quot;,
+    &quot;Python.tstinggptdataloading.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/coding/MyGPT/gpt_code/gpt_runner.py&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/coding/MyGPT&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
@@ -55,27 +82,28 @@
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="E:\coding\MyGPT\models" />
-      <recent name="E:\coding\MyGPT\model_info" />
+      <recent name="E:\coding\MyGPT\useful_gpt_utilities" />
       <recent name="E:\coding\MyGPT\encoder_directory" />
-      <recent name="E:\coding\MyGPT\input_data_files" />
-      <recent name="E:\coding\MyGPT" />
+      <recent name="E:\coding\MyGPT\model_info" />
+      <recent name="E:\coding\MyGPT\models" />
+      <recent name="E:\coding\MyGPT\shellcode_gpt_example" />
     </key>
   </component>
-  <component name="RunManager">
+  <component name="RunManager" selected="Python.BigramGPT">
     <configuration name="BigramGPT" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="MyGPT" />
+      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
         <env name="PYTHONUNBUFFERED" value="1" />
       </envs>
       <option name="SDK_HOME" value="E:\Users\Admin\anaconda3\envs\bigram\python.exe" />
-      <option name="SDK_NAME" value="bigram" />
       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="false" />
+      <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/gpt_code/BigramGPT.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -85,20 +113,21 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="gpt_runner" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+    <configuration name="gpt_inference_testing" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="MyGPT" />
+      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
         <env name="PYTHONUNBUFFERED" value="1" />
       </envs>
       <option name="SDK_HOME" value="E:\Users\Admin\anaconda3\envs\bigram\python.exe" />
-      <option name="SDK_NAME" value="bigram" />
       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/gpt_code" />
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/gpt_code/gpt_runner.py" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="E:\coding\MyGPT\gpt_code\gpt_inference_testing.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -109,17 +138,19 @@
     </configuration>
     <configuration name="original_bigram_gpt" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="MyGPT" />
+      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
         <env name="PYTHONUNBUFFERED" value="1" />
       </envs>
       <option name="SDK_HOME" value="E:\Users\Admin\anaconda3\envs\bigram\python.exe" />
-      <option name="SDK_NAME" value="bigram" />
+      <option name="SDK_NAME" value="E:\Users\Admin\anaconda3\envs\bigram" />
       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/gpt_code/original_bigram_gpt.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -131,17 +162,18 @@
     </configuration>
     <configuration name="parquet-to-json" type="PythonConfigurationType" factoryName="Python">
       <module name="MyGPT" />
+      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
         <env name="PYTHONUNBUFFERED" value="1" />
       </envs>
       <option name="SDK_HOME" value="E:\Users\Admin\anaconda3\envs\myGPT\python.exe" />
-      <option name="SDK_NAME" value="myGPT" />
       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/parquet_to_json.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -152,11 +184,18 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.parquet-to-json" />
       <item itemvalue="Python.BigramGPT" />
+      <item itemvalue="Python.gpt_inference_testing" />
       <item itemvalue="Python.original_bigram_gpt" />
-      <item itemvalue="Python.gpt_runner" />
+      <item itemvalue="Python.parquet-to-json" />
     </list>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-09665e90c3a7-b11f5e8da5ad-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-233.15026.15" />
+      </set>
+    </attachedChunks>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
@@ -167,8 +206,18 @@
       <option name="presentableId" value="Default" />
       <updated>1691319932649</updated>
       <workItem from="1710386463112" duration="11000" />
+      <workItem from="1711748768341" duration="7527000" />
+      <workItem from="1711883047360" duration="11374000" />
+      <workItem from="1711926151111" duration="15662000" />
+      <workItem from="1711971402835" duration="9584000" />
+      <workItem from="1712054732489" duration="3184000" />
+      <workItem from="1712437728740" duration="2306000" />
+      <workItem from="1712440940562" duration="47000" />
     </task>
     <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
     <option name="TAB_STATES">
@@ -180,5 +229,16 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/Shellcode_IA32_tsv$original_bigram_gpt.coverage" NAME="original_bigram_gpt Coverage Results" MODIFIED="1712041200908" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/Shellcode_IA32_tsv$BigramGPT.coverage" NAME="BigramGPT Coverage Results" MODIFIED="1712054752703" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/Shellcode_IA32_tsv$hdf5viewer.coverage" NAME="hdf5viewer Coverage Results" MODIFIED="1711930735232" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/Shellcode_IA32_tsv$tstinggptdataloading.coverage" NAME="tstinggptdataloading Coverage Results" MODIFIED="1711927915965" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/gpt_code" />
+    <SUITE FILE_PATH="coverage/Shellcode_IA32_tsv$train_tokenizer.coverage" NAME="train_tokenizer Coverage Results" MODIFIED="1711933298518" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/gpt_code" />
+    <SUITE FILE_PATH="coverage/Shellcode_IA32_tsv$t.coverage" NAME="t Coverage Results" MODIFIED="1711931884796" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/Shellcode_IA32_tsv$file_splitter.coverage" NAME="file_splitter Coverage Results" MODIFIED="1711931997169" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/useful_gpt_utilities" />
+    <SUITE FILE_PATH="coverage/Shellcode_IA32_tsv$original_bigram_gpt_dataloading.coverage" NAME="original_bigram_gpt_dataloading Coverage Results" MODIFIED="1712438934630" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/gpt_code" />
+    <SUITE FILE_PATH="coverage/Shellcode_IA32_tsv$hdf5ify.coverage" NAME="hdf5ify Coverage Results" MODIFIED="1711930350445" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/useful_gpt_utilities" />
   </component>
 </project>

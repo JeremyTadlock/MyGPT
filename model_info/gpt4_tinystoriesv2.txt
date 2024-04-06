@@ -1,0 +1,22 @@
+Model Name: Tinystories_CustomStories
+    Hyperparameter Count: (29.914792, 'M parameters')
+    Batch Size: 32
+    Block Size: 128
+    Max Iterations: 2500
+    Eval Interval: 500
+    Learning Rate: 0.0001
+    Device: cuda
+    Eval Iters: 200
+    Num Embeddings: 384
+    Num Heads: 6
+    Num Layers: 6
+    BPE Vocab Size: 25000
+    Accumulation Steps: 4
+    Dropout: 0.2
+    Training time: 1981.48863363266
+    loss tracker: step 0: train loss 10.0455, val loss 10.0449
+step 500: train loss 3.6666, val loss 3.7754
+step 1000: train loss 3.1369, val loss 3.2711
+step 1500: train loss 2.8905, val loss 3.0049
+step 2000: train loss 2.7145, val loss 2.8482
+step 2499: train loss 2.6007, val loss 2.7295

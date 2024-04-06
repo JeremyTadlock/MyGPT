@@ -3,9 +3,9 @@ import gpt_tokenizers
 from original_bigram_gpt import BigramLanguageModel, device, block_size  # Assuming 'device' is defined and exported in BigramGPT module
 
 # Paths for model and tokenizer
-model_path = '../shellcode_gpt_example/shellcode_v2.6.pth'
-vocab_path = '../shellcode_gpt_example/shellcode_v2.6-vocab.json'
-merges_path = '../shellcode_gpt_example/shellcode_v2.6-merges.txt'
+model_path = '../models/shellcode_v2.8.pth'
+vocab_path = '../encoder_directory/shellcode_v2.8-vocab.json'
+merges_path = '../encoder_directory/shellcode_v2.8-merges.txt'
 
 # Load the model
 print("Loading model")
@@ -37,7 +37,7 @@ more_questions = ["<question> Decrement eax by 1.",
 even_more_questions = ["<question> Write assembly code to decrement the contents of the ebx register by 1, and then perform a specific operation if the result is negative."]
 
 # Encoding the question and converting to tensor
-encoded_questions = [byte_pair_encoder.encode(question) for question in questions]
+encoded_questions = [byte_pair_encoder.encode(question) for question in more_questions]
 
 
 
@@ -70,7 +70,7 @@ for encoded_question in encoded_questions:
     print("Generating text using top p sampling")
     for _ in range(5):
         generated_text_ids = \
-        model.generate_top_p(question_tensor, max_new_tokens=500, eos_token_id=2, top_p=0.4, temperature=0.5)[
+        model.generate_top_p(question_tensor, max_new_tokens=500, eos_token_id=2, top_p=0.2, temperature=0.3    )[
             0].tolist()
         generated_text = byte_pair_encoder.decode(generated_text_ids)
         print(generated_text + '\n\n')

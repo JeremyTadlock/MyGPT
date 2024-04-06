@@ -1,6 +1,5 @@
 import time
 import random
-import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -11,24 +10,26 @@ import os
 import optuna
 import numpy as np
 from torch.utils.data import Dataset
+import h5py
 
-batch_size = 64  # Number of sequences processed in parallel
+batch_size = 32  # Number of sequences processed in parallel
 block_size = 128  # Max content length for predictions
-max_iters = 2000  # was 3000 with lr=1e-2
-eval_interval = 500   # how often we check train/val loss and generate autocompleted tokens.
+max_iters = 2500  # was 3000 with lr=1e-2
+eval_interval = 500  # how often we check train/val loss and generate autocompleted tokens.
 learning_rate = 1e-4  # could use 3e-4
 device = 'cuda' if torch.cuda.is_available() else 'cpu'  # try to use pytorch's CUDA for GPU parallel processing
 eval_iters = 200
 num_heads = 6
 num_layers = 6
 num_embeddings = num_heads * 64  # this number was chosen because every head should be 64 dimensions.
-bpe_vocab_size = 5000
+bpe_vocab_size = 25000
 accumulation_steps = 4
 loss_tracker = []
 # dropout is a way to prevent overfitting in large neural networks. it works by having every forward-backward pass
 # randomly shut off a subset of neurons(set to 0). It basically splits training into multiple sub-networks then
 # re-merges them at testing time.
 dropout = 0.2  # link here: https://www.cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf
+
 
 def get_best_hyperparameters_bayesian_optimization(trial):
     # Before i implement this i need to package the tokenizer training neatly into a class/def, then do the same for
@@ -43,6 +44,7 @@ def get_best_hyperparameters_bayesian_optimization(trial):
     test_num_heads = 16
     test_num_layers = 16
     test_accumulation_steps = 4
+
 
 def get_model_info():
     # convert list to string
@@ -90,6 +92,71 @@ class TextDataset(Dataset):
         y = torch.tensor(chunk[1:], dtype=torch.long)
         return x, y
 
+
+class MemmapTextDataset(Dataset):
+    def __init__(self, memmap_file_path, tokenizer, block_size):
+        self.tokenizer = tokenizer
+        self.block_size = block_size
+        # Assuming the memmap file is already created and contains tokenized text
+        self.data = np.memmap(memmap_file_path, dtype='int32', mode='r')
+        self.length = len(self.data) - block_size
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        # Get the sequence of tokens starting from idx
+        chunk = self.data[idx:idx + self.block_size + 1]
+        x = torch.tensor(chunk[:-1], dtype=torch.long)
+        y = torch.tensor(chunk[1:], dtype=torch.long)
+        return x, y
+
+
+def create_memmap_dataset_chunked(input_text_file, output_memmap_file, tokenizer, chunk_size=10000000):
+    """
+    Create a memmap dataset by processing the input text file in chunks.
+    """
+    # Determine the total size of the input file for progress calculation
+    total_size = os.path.getsize(input_text_file)
+    processed_size = 0
+
+    token_chunks = []
+    total_tokens = 0
+
+    with open(input_text_file, 'r', encoding='utf-8') as file:
+        while True:
+            # Keep track of the file position before reading the next chunk
+            start_position = file.tell()
+            text_chunk = file.read(chunk_size)
+            # Update processed size based on the amount of text actually read
+            processed_size += (file.tell() - start_position)
+
+            if not text_chunk:
+                break  # End of file
+
+            tokens = tokenizer.encode(text_chunk)
+            total_tokens += len(tokens)
+            token_chunks.append(tokens)
+
+            # Calculate and print the loading percentage
+            loading_percentage = (processed_size / total_size) * 100
+            print(f"Loading progress: {loading_percentage:.2f}%")
+
+    # Create a memmap file with the total number of tokens
+    memmap_array = np.memmap(output_memmap_file, dtype='int32', mode='w+', shape=(total_tokens,))
+
+    # Fill the memmap array with tokenized text from chunks
+    position = 0
+    for index, tokens in enumerate(token_chunks):
+        memmap_array[position:position + len(tokens)] = tokens
+        position += len(tokens)
+        # Optional: Update on chunk processing progress
+        chunk_processing_percentage = ((index + 1) / len(token_chunks)) * 100
+        print(f"Processing chunk {index + 1}/{len(token_chunks)}: {chunk_processing_percentage:.2f}% complete")
+
+    del memmap_array  # Flush memory changes to disk
+    print("Dataset creation complete.")
+
 # load data
 def load_batch(split):
     data = train_data if split == 'train' else val_data
@@ -99,6 +166,7 @@ def load_batch(split):
     y = torch.stack([data[i + 1:i + block_size + 1] for i in ix])
     x, y = x.to(device), y.to(device)
     return x, y
+
 
 # def load_batch(split):
 #     data = train_data if split == 'train' else val_data
@@ -131,14 +199,54 @@ def load_batch(split):
 
 
 # Original loss estimation code. not as accurate as it doesnt use the monte carlo method, but it runs faster.
-@torch.no_grad()  # tell's pytorch we AREN'T using backpropagation, saving memory
+# @torch.no_grad()  # tell's pytorch we AREN'T using backpropagation, saving memory
+# def estimate_loss():
+#     out = {}
+#     model.eval()
+#     for split in ['train', 'val']:
+#         losses = torch.zeros(eval_iters)
+#         for k in range(eval_iters):
+#             X, Y = load_batch(split)
+#             logits, loss = model(X, Y)
+#             losses[k] = loss.item()
+#         out[split] = losses.mean()
+#     model.train()
+#     return out
+
+# @torch.no_grad()  # tell's pytorch we AREN'T using backpropagation, saving memory
+# def estimate_loss():
+#     out = {}
+#     model.eval()
+#     for split in ['train', 'val']:
+#         losses = torch.zeros(eval_iters)
+#         for k in range(eval_iters):
+#             if split== 'train':
+#                 X, Y = next(iter(train_data_loader))
+#                 X, Y = X.to(device), Y.to(device)
+#             elif split== 'val':
+#                 X, Y = next(iter(val_data_loader))
+#                 X, Y = X.to(device), Y.to(device)
+#             logits, loss = model(X, Y)
+#             losses[k] = loss.item()
+#         out[split] = losses.mean()
+#     model.train()
+#     return out
+
+@torch.no_grad() # tell's pytorch we AREN'T using backpropagation, saving memory
 def estimate_loss():
     out = {}
     model.eval()
+    data_loaders = {'train': iter(train_data_loader), 'val': iter(val_data_loader)}
     for split in ['train', 'val']:
         losses = torch.zeros(eval_iters)
         for k in range(eval_iters):
-            X, Y = load_batch(split)
+            try:
+                X, Y = next(data_loaders[split])
+            except StopIteration:
+                # Reinitialize the iterator if the dataset is exhausted
+                data_loaders[split] = iter(train_data_loader if split == 'train' else val_data_loader)
+                X, Y = next(data_loaders[split])
+            X, Y = X.to(device), Y.to(device)
             logits, loss = model(X, Y)
             losses[k] = loss.item()
         out[split] = losses.mean()
@@ -403,23 +511,23 @@ if __name__ == '__main__':
     start_time = time.time()
     print("device:", device)
 
-    # Grab data from datasets
-    print("Loading dataset")
-    dataset = ""
-    files = ["../input_data_files/openai_generated_text_3000_spooky.txt"]
-    for file in files:
-        with open(file, "r", encoding="utf8") as f:
-            dataset = dataset + f.read() + '\n'
-
-    # Statistics about imported dataset(s)
-    print(len(dataset))
-    chars = sorted(list(set(dataset)))
-    print("token size char:", len(chars))
-
-    # Use Byte-Pair Encoder
-    print("training BPE")
-    byte_pair_encoder = gpt_tokenizers.BytePairEncoder(bpe_vocab_size, 2)
-    byte_pair_encoder.train(files)
+    # # Grab data from datasets
+    # print("Loading dataset")
+    # dataset = ""
+    # files = ["./input_data_files/openai_generated_text_3000_spooky.txt"]
+    # for file in files:
+    #     with open(file, "r", encoding="utf8") as f:
+    #         dataset = dataset + f.read() + '\n'
+    #
+    # # Statistics about imported dataset(s)
+    # print(len(dataset))
+    # chars = sorted(list(set(dataset)))
+    # print("token size char:", len(chars))
+    #
+    # # Use Byte-Pair Encoder
+    # print("training BPE")
+    # byte_pair_encoder = gpt_tokenizers.BytePairEncoder(bpe_vocab_size, 2)
+    # byte_pair_encoder.train(files)
 
     # Use Character decoder
     # use character_tokenizer.decode and character_tokenizer.encode for encoding/decoding
@@ -438,33 +546,65 @@ if __name__ == '__main__':
     # data='openai_generated_text.txt')
 
     # Split input data into train/test data - uses a 90%/10% split
-    print("Splitting data")
+    # print("Splitting data")
+    #
+    # chunk_size = 60000  # Adjust the chunk size according to your memory capacity
+    # train_chunks = []
+    # val_chunks = []
+    #
+    # total_chunks = (len(dataset) + chunk_size - 1) // chunk_size
+    # processed_chunks = 0
+    # print_interval = total_chunks // 10  # Print progress every 10%
+    #
+    # for i in range(0, len(dataset), chunk_size):
+    #     chunk = dataset[i:i + chunk_size]
+    #     encoded_chunk = byte_pair_encoder.encode(chunk)
+    #     encoded_chunk_tensor = torch.tensor(encoded_chunk, dtype=torch.long)
+    #     n = int(0.9 * len(encoded_chunk_tensor))
+    #     train_chunks.append(encoded_chunk_tensor[:n])
+    #     val_chunks.append(encoded_chunk_tensor[n:])
+    #
+    #     processed_chunks += 1
+    #     if processed_chunks % print_interval == 0:
+    #         progress = (processed_chunks / total_chunks) * 100
+    #         print(f"Loading progress: {progress:.2f}%")
+    #
+    # train_data = torch.cat(train_chunks)
+    # val_data = torch.cat(val_chunks)
+    # print("tokens in dataset", len(train_data) + len(val_data))
+    # print("Done splitting")
 
-    chunk_size = 60000  # Adjust the chunk size according to your memory capacity
-    train_chunks = []
-    val_chunks = []
+    # Paths for model and tokenizer
+    vocab_path = '../encoder_directory/gpt4_tinystories-vocab.json'
+    merges_path = '../encoder_directory/gpt4_tinystories-merges.txt'
 
-    total_chunks = (len(dataset) + chunk_size - 1) // chunk_size
-    processed_chunks = 0
-    print_interval = total_chunks // 10  # Print progress every 10%
+    # Load the Tokenizer
+    print("Loading tokenizer")
+    byte_pair_encoder = gpt_tokenizers.BytePairEncoder()
+    byte_pair_encoder.load(vocab_path, merges_path)
 
-    for i in range(0, len(dataset), chunk_size):
-        chunk = dataset[i:i + chunk_size]
-        encoded_chunk = byte_pair_encoder.encode(chunk)
-        encoded_chunk_tensor = torch.tensor(encoded_chunk, dtype=torch.long)
-        n = int(0.9 * len(encoded_chunk_tensor))
-        train_chunks.append(encoded_chunk_tensor[:n])
-        val_chunks.append(encoded_chunk_tensor[n:])
+    print("mmap train")
+    # mmap npy setup for the training dataset
+    train_input_file_path = "../input_data_files/TinyStoriesV2-GPT4-train.txt"
+    train_output_memmap_file_path = "../mmap_datasets/TinyStoriesV2-GPT4-train.npy"
+    create_memmap_dataset_chunked(train_input_file_path, train_output_memmap_file_path, byte_pair_encoder)
 
-        processed_chunks += 1
-        if processed_chunks % print_interval == 0:
-            progress = (processed_chunks / total_chunks) * 100
-            print(f"Loading progress: {progress:.2f}%")
+    print("mmap val")
+    # mmap npy setup for the validation dataset
+    val_input_file_path = "../input_data_files/TinyStoriesV2-GPT4-valid.txt"
+    val_output_memmap_file_path = "../mmap_datasets/TinyStoriesV2-GPT4-valid.npy"
+    create_memmap_dataset_chunked(val_input_file_path, val_output_memmap_file_path, byte_pair_encoder)
 
-    train_data = torch.cat(train_chunks)
-    val_data = torch.cat(val_chunks)
-    print("tokens in dataset", len(train_data) + len(val_data))
-    print("Done splitting")
+    print("loading dataset")
+    # Initialize dataset for training
+    train_dataset = MemmapTextDataset(memmap_file_path=train_output_memmap_file_path,
+                                tokenizer=byte_pair_encoder, block_size=block_size)
+    train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True)
+
+    # Initialize dataset for validation
+    val_dataset = MemmapTextDataset(memmap_file_path=val_output_memmap_file_path,
+                              tokenizer=byte_pair_encoder, block_size=block_size)
+    val_data_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=True)
 
     print("Loading model")
     model = BigramLanguageModel()
@@ -481,18 +621,33 @@ if __name__ == '__main__':
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
     scaler = GradScaler()  # Setting up GradScaler for mixed precision
+
     # Training loop
     print("Looping over iterations")
-    for iter in range(max_iters):
-        print(iter)
-        # Reset gradients at the beginning of the loop
-        optimizer.zero_grad(set_to_none=True)
+
+    # Create an iterator from the DataLoader
+    data_loader_iter = iter(train_data_loader)
+
+    # frees up unused memory from the GPU cache
+    torch.cuda.empty_cache()
+
+    for iteration in range(max_iters):
+        print(iteration)
+        optimizer.zero_grad(set_to_none=True)  # Reset gradients at the beginning of each full iteration
 
         for _ in range(accumulation_steps):
-            # Sample a batch of data
-            xb, yb = load_batch('train')
+            try:
+                # Fetch a single batch of data
+                xb, yb = next(data_loader_iter)
+            except StopIteration:
+                # DataLoader is exhausted, create a new iterator
+                data_loader_iter = iter(train_data_loader)
+                xb, yb = next(data_loader_iter)
+
+            xb, yb = xb.to(device), yb.to(device)
             # print("xb:", xb.shape)
-            # print("yb:", xb.shape)
+            # print("yb:", yb.shape)
+
             # Forward pass under autocast
             with autocast():
                 logits, loss = model(xb, yb)
@@ -502,18 +657,18 @@ if __name__ == '__main__':
             # Backward pass (accumulate gradients)
             scaler.scale(loss).backward()
 
-        # Step with optimizer
+        # Step with optimizer after accumulation
         scaler.step(optimizer)
         scaler.update()
-        optimizer.zero_grad(set_to_none=True)  # Ensure optimizer is zeroed at the end
+        optimizer.zero_grad(set_to_none=True)  # Ensure gradients are zeroed at the end
 
         # Periodically evaluate the model and print out the loss and generated text
-        if iter % eval_interval == 1110 or iter == max_iters - 1:
+        if iteration % eval_interval == 0 or iteration == max_iters - 1:
             losses = estimate_loss()
-            log_string = f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
+            log_string = f"step {iteration}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
             loss_tracker.append(log_string)
             print(log_string)
-            if iter != 0:
+            if iteration != 0:
                 context = torch.zeros((1, 1), dtype=torch.long, device=device)
                 generated_text = m.generate(context, max_new_tokens=2500)[0].tolist()
                 decoded_text = byte_pair_encoder.decode(generated_text)
@@ -522,7 +677,7 @@ if __name__ == '__main__':
 
     print("saving model and info")
     # Save pretrained model
-    torch.save(model.state_dict(), './models/shellcode_v2.8.pth')
+    torch.save(model.state_dict(), '../models/tinystories_gpt4v2.pth')
 
     # Record runtime
     end_time = time.time()
@@ -536,8 +691,9 @@ if __name__ == '__main__':
     # Call get_model_info to get the model configuration and parameters
     model_info = get_model_info()
 
-    file_name = tokenizer_name + '.txt'
-    model_info_path = "./model_info"
+    model_name = "gpt4_tinystoriesv2"
+    file_name = model_name + '.txt'
+    model_info_path = "../model_info"
     file_path = os.path.join(model_info_path, file_name)
     with open(file_path, 'w') as file:
         file.write(model_info)
