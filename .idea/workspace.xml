@@ -5,18 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="88b9a5fc-21f3-42d4-a6b4-0262b4744f74" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/gpt_code/bigram_gpt_dataloading.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gpt_code/train_tokenizer.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/useful_gpt_utilities/hdf5ify.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Tinystories_CustomStories_6000epochs.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/gpt_code/gpt_runner.py" beforeDir="false" afterPath="$PROJECT_DIR$/gpt_code/gpt_inference_testing.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gpt_code/original_bigram_gpt.py" beforeDir="false" afterPath="$PROJECT_DIR$/gpt_code/original_bigram_gpt.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/input_data_files/openai_generated_text_3000_spooky.txt" beforeDir="false" afterPath="$PROJECT_DIR$/input_data_files/openai_generated_text_3000_spooky.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/openai_data_generation.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/useful_gpt_utilities/file_splitter.py" beforeDir="false" afterPath="$PROJECT_DIR$/useful_gpt_utilities/file_splitter.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -212,7 +203,8 @@
       <workItem from="1711971402835" duration="9584000" />
       <workItem from="1712054732489" duration="3184000" />
       <workItem from="1712437728740" duration="2306000" />
-      <workItem from="1712440940562" duration="47000" />
+      <workItem from="1712440940562" duration="651000" />
+      <workItem from="1712555183544" duration="44000" />
     </task>
     <servers />
   </component>

@@ -30,11 +30,15 @@ This project represents a deep dive into the realm of Natural Language Processin
 ### **Installation**
 
 Clone the repository to your local machine:
+
 git clone https://github.com/JeremyTadlock/MyGPT
+
 cd https://github.com/JeremyTadlock/MyGPT
+
 
 Install Dependencies:
 pip install -r requirements.txt
+
 
 Running the Model
 To start pretraining, first train the tokenizer on your training data using train_tokenizer.py
