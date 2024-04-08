@@ -38,12 +38,15 @@ cd https://github.com/JeremyTadlock/MyGPT
 
 Install Dependencies:
 pip install -r requirements.txt
-
+Note: Depending on your version of python, you may have to install a specific matching CUDA version in order to use 
+CUDA and access the GPU during training.
+see
 
 Running the Model
 To start pretraining, first train the tokenizer on your training data using train_tokenizer.py
 Then, use bigram_gpt_dataloading.py to run the pretraining using your tokenized data.
 Note: make sure to set your parameters, and input files including your training and validation data paths, and output model name when training is done.
+See for more info: https://pytorch.org/get-started/locally/
 
 After running the programs, the trained tokenizer and pretrained GPT will be saved, including information such as training time and hyperparameters.
 
